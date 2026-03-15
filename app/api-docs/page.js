@@ -831,7 +831,7 @@ export default function ApiDocsPage() {
             <EndpointCard
               method="GET" path="/api/v1/[table]" auth="token"
               summary="Query records from a table"
-              desc="Returns paginated records from one of the 9 supported tables. All timestamps are in UTC. System columns (uploaded_by, upload_batch_id, *_hash, *_timestamp) are stripped from responses."
+              desc="Returns paginated records from one of the supported tables. Use GET /api/v1/modules to discover which tables you have access to. All timestamps are in UTC. System columns (uploaded_by, upload_batch_id, *_hash, *_timestamp) are stripped from responses."
               params={[
                 { name: 'table',     type: 'path param', required: true,  desc: 'DB table name (see available tables below)' },
                 { name: 'page',      type: 'integer',    required: false, desc: 'Page number, default 1' },
@@ -852,6 +852,23 @@ export default function ApiDocsPage() {
   ]
 }`}
               notes="Available tables: unauthorized_search_result, ads_tutorials_social_media, password_sharing_social_media, password_sharing_marketplace, iptv_apps_internet, iptv_apps_apps, iptv_apps_social_media, iptv_apps_marketplace, iptv_apps_meta_ads. Token usage is logged with endpoint, IP, and status code."
+            />
+
+            <EndpointCard
+              method="GET" path="/api/v1/modules" auth="token"
+              summary="List authorised modules"
+              desc="Returns the modules the authenticated user is allowed to access. Admins and superadmins receive all active modules. Regular users receive only modules where can_view = 1. Use the db_table value from the response as the [table] path parameter when calling GET /api/v1/[table]."
+              resBody={`GET /api/v1/modules
+
+{
+  "success": true,
+  "modules": [
+    "Unauthorized Search Result",
+    "Ads Tutorials- Social Media",
+    "IPTV & Apps - Internet"
+  ]
+}`}
+              notes="Admins and superadmins receive all active module names. Regular users receive only the modules where can_view = 1 is granted."
             />
           </div>
         )}
