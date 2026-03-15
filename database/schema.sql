@@ -40,15 +40,17 @@ CREATE TABLE IF NOT EXISTS modules (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT IGNORE INTO modules (name, label, route, db_table, icon, color, sort_order) VALUES
-('Unauthorized Search Result',    'Unauthorized Search Result',      '/unauthorized-search',          'unauthorized_search_result',     'fa-magnifying-glass', 'red',    1),
-('Ads Tutorials- Social Media',   'Ads Tutorials - Social Media',    '/ads-social-media',             'ads_tutorials_social_media',     'fa-bullhorn',         'blue',   2),
-('Password Sharing-Social Med.',  'Password Sharing - Social Media', '/password-sharing-social',      'password_sharing_social_media',  'fa-lock',             'orange', 3),
-('Password Sharing-Marketplace',  'Password Sharing - Marketplace',  '/password-sharing-marketplace', 'password_sharing_marketplace',   'fa-cart-shopping',    'purple', 4),
-('IPTV & Apps - Internet',        'IPTV & Apps - Internet',          '/iptv-internet',                'iptv_apps_internet',             'fa-globe',            'teal',   5),
-('IPTV & Apps - Apps',            'IPTV & Apps - Apps',              '/iptv-apps',                    'iptv_apps_apps',                 'fa-mobile-screen',    'green',  6),
-('IPTV & Apps - Social Media',    'IPTV & Apps - Social Media',      '/iptv-social',                  'iptv_apps_social_media',         'fa-share-nodes',      'pink',   7),
-('IPTV & Apps - Marketplace',     'IPTV & Apps - Marketplace',       '/iptv-marketplace',             'iptv_apps_marketplace',          'fa-store',            'yellow', 8),
-('IPTV & Apps - Meta Ads',        'IPTV & Apps - Meta Ads',          '/iptv-meta-ads',                'iptv_apps_meta_ads',             'fa-tv',               'indigo', 9);
+('Social Media',                  'Social Media',                    '/social-media',                 'social_media',                   'fa-share-nodes',      'blue',   1),
+('Marketplace',                   'Marketplace',                     '/marketplace',                  'marketplace',                    'fa-store',            'orange', 2),
+('Unauthorized Search Result',    'Unauthorized Search Result',      '/unauthorized-search',          'unauthorized_search_result',     'fa-magnifying-glass', 'red',    3),
+('Ads Tutorials- Social Media',   'Ads Tutorials - Social Media',    '/ads-social-media',             'ads_tutorials_social_media',     'fa-bullhorn',         'blue',   4),
+('Password Sharing-Social Med.',  'Password Sharing - Social Media', '/password-sharing-social',      'password_sharing_social_media',  'fa-lock',             'orange', 5),
+('Password Sharing-Marketplace',  'Password Sharing - Marketplace',  '/password-sharing-marketplace', 'password_sharing_marketplace',   'fa-cart-shopping',    'purple', 6),
+('IPTV & Apps - Internet',        'IPTV & Apps - Internet',          '/iptv-internet',                'iptv_apps_internet',             'fa-globe',            'teal',   7),
+('IPTV & Apps - Apps',            'IPTV & Apps - Apps',              '/iptv-apps',                    'iptv_apps_apps',                 'fa-mobile-screen',    'green',  8),
+('IPTV & Apps - Social Media',    'IPTV & Apps - Social Media',      '/iptv-social',                  'iptv_apps_social_media',         'fa-share-nodes',      'pink',   9),
+('IPTV & Apps - Marketplace',     'IPTV & Apps - Marketplace',       '/iptv-marketplace',             'iptv_apps_marketplace',          'fa-store',            'yellow', 10),
+('IPTV & Apps - Meta Ads',        'IPTV & Apps - Meta Ads',          '/iptv-meta-ads',                'iptv_apps_meta_ads',             'fa-tv',               'indigo', 11);
 
 -- ────────────────────────────────────────────────────────────
 -- USER MODULE PERMISSIONS
