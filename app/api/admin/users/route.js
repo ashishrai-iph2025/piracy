@@ -70,6 +70,15 @@ export async function PUT(req) {
       }
     }
 
+    // Admins cannot change password of a superadmin — only superadmin can do that
+    if (password !== undefined && session.role !== 'superadmin') {
+      const rows = await query('SELECT role FROM users WHERE id = ?', [id])
+      if (!rows.length) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+      if (rows[0].role === 'superadmin') {
+        return NextResponse.json({ error: 'Only superadmin can change a superadmin\'s password' }, { status: 403 })
+      }
+    }
+
     const updates = {}
     if (first_name !== undefined) updates.first_name = first_name
     if (last_name  !== undefined) updates.last_name  = last_name

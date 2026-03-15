@@ -84,7 +84,6 @@ export async function POST(req) {
 
     // Build column mapping: cfg.key -> column index in Excel
     const colMap = {}
-    const ottColMap = {} // for OTT columns: ottIndex -> col index
 
     for (const colDef of cfg.columns) {
       if (colDef.key === 'id') continue
@@ -209,4 +208,5 @@ export async function POST(req) {
   }
 }
 
-export const config = { api: { bodyParser: false } }
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";

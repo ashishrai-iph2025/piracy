@@ -69,6 +69,13 @@ export default function AdminPage() {
   const [formError, setFormError] = useState('')
   const [formSuccess, setFormSuccess] = useState('')
 
+  // Change Password modal
+  const [pwdModal, setPwdModal] = useState(null) // { id, name }
+  const [pwdValue, setPwdValue] = useState('')
+  const [pwdError, setPwdError] = useState('')
+  const [pwdSuccess, setPwdSuccess] = useState('')
+  const [pwdSaving, setPwdSaving] = useState(false)
+
   // DB Optimize
   const [dbReport, setDbReport]       = useState(null)
   const [dbLoading, setDbLoading]     = useState(false)
@@ -348,6 +355,30 @@ export default function AdminPage() {
     if (d.success) fetchUsers()
   }
 
+  function openPwdModal(user) {
+    setPwdModal({ id: user.id, name: `${user.first_name} ${user.last_name}` })
+    setPwdValue(''); setPwdError(''); setPwdSuccess('')
+  }
+
+  async function handleChangePassword(e) {
+    e.preventDefault()
+    if (!pwdValue || pwdValue.length < 6) { setPwdError('Password must be at least 6 characters'); return }
+    setPwdSaving(true); setPwdError(''); setPwdSuccess('')
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: pwdModal.id, password: pwdValue }),
+      })
+      const d = await res.json()
+      if (d.success) {
+        setPwdSuccess('Password changed successfully')
+        setTimeout(() => setPwdModal(null), 1200)
+      } else setPwdError(d.error || 'Failed to change password')
+    } catch { setPwdError('Server error') }
+    finally { setPwdSaving(false) }
+  }
+
   async function changeUserRole(user, newRole) {
     if (user.role === newRole) return
     const res = await fetch('/api/admin/users', {
@@ -478,10 +509,19 @@ export default function AdminPage() {
                           {user.last_login ? String(user.last_login).slice(0, 16) : '—'}
                         </td>
                         <td>
-                          <div style={{ display: 'flex', gap: '4px' }}>
+                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                             <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '11px' }} onClick={() => selectUserForPerms(user)} title="Manage module permissions">
                               <i className="fas fa-key" />Permissions
                             </button>
+                            {(userRole === 'superadmin' || user.role !== 'superadmin') && (
+                              <button
+                                onClick={() => openPwdModal(user)}
+                                style={{ padding: '4px 8px', fontSize: '11px', background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: '#6366f1', borderRadius: '6px', cursor: 'pointer' }}
+                                title="Change password"
+                              >
+                                <i className="fas fa-lock" />Password
+                              </button>
+                            )}
                             <button onClick={() => toggleUserActive(user)}
                               style={{ padding: '4px 8px', fontSize: '11px', background: user.is_active ? 'rgba(239,68,68,.15)' : 'rgba(34,197,94,.15)', border: `1px solid ${user.is_active ? 'rgba(239,68,68,.3)' : 'rgba(34,197,94,.3)'}`, color: user.is_active ? '#ef4444' : '#22c55e', borderRadius: '6px', cursor: 'pointer' }}>
                               <i className={`fas fa-${user.is_active ? 'ban' : 'check'}`} />
@@ -1103,6 +1143,39 @@ export default function AdminPage() {
                 <i className="fas fa-exclamation-circle" style={{ marginRight: '6px' }} />{dbReport.error}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Change Password Modal */}
+        {pwdModal && (
+          <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setPwdModal(null)}>
+            <div className="modal" style={{ maxWidth: '400px' }}>
+              <div className="modal-header">
+                <h3 className="modal-title"><i className="fas fa-lock" style={{ marginRight: '8px' }} />Change Password</h3>
+                <button onClick={() => setPwdModal(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '20px' }}>×</button>
+              </div>
+              <form onSubmit={handleChangePassword}>
+                <div className="modal-body">
+                  <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                    Set a new password for <strong>{pwdModal.name}</strong>
+                  </div>
+                  {pwdError && <div style={{ color: 'var(--red)', background: 'rgba(239,68,68,.1)', padding: '10px 12px', borderRadius: '8px', fontSize: '13px', marginBottom: '14px' }}>{pwdError}</div>}
+                  {pwdSuccess && <div style={{ color: 'var(--green)', background: 'rgba(34,197,94,.1)', padding: '10px 12px', borderRadius: '8px', fontSize: '13px', marginBottom: '14px' }}>{pwdSuccess}</div>}
+                  <div>
+                    <label className="form-label">New Password *</label>
+                    <input type="password" className="form-input" required minLength={6}
+                      value={pwdValue} onChange={e => setPwdValue(e.target.value)}
+                      placeholder="At least 6 characters" autoFocus />
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-secondary" onClick={() => setPwdModal(null)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary" disabled={pwdSaving}>
+                    {pwdSaving ? 'Saving…' : <><i className="fas fa-lock" />Change Password</>}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
 
