@@ -737,10 +737,10 @@ export default function SprintPage() {
             <div>
               <h1 style={{ fontSize: '22px', fontWeight: '800', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <i className="fas fa-rocket" style={{ color: 'var(--accent)' }} />
-                PMS Sprint Plan
+                AMS Sprint Plan
               </h1>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                Piracy Monitoring System — JIRA Epics, Stories & Subtasks
+                API Monitoring System — JIRA Epics, Stories & Subtasks
               </p>
             </div>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>

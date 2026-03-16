@@ -5,7 +5,7 @@ import { query } from '@/lib/db'
 import * as XLSX from 'xlsx'
 
 // System columns never included in templates
-const SKIP_COLS = new Set(['uploaded_by', 'upload_batch_id', 'created_at', 'updated_at'])
+const SKIP_COLS = new Set(['uploaded_by', 'upload_batch_id', 'created_at', 'updated_at', 'sr_no'])
 const SKIP_SUFFIX = ['_hash']
 
 function toHeader(col) {

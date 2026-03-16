@@ -2,8 +2,8 @@ import './globals.css'
 import ClientLayout from '@/components/ClientLayout'
 
 export const metadata = {
-  title: 'Piracy Monitoring System',
-  description: 'Piracy reporting and enforcement tracking system',
+  title: 'API Monitoring System',
+  description: 'API monitoring and enforcement tracking system',
 }
 
 export default function RootLayout({ children }) {

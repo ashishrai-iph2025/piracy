@@ -31,7 +31,7 @@ export async function GET(req) {
 
   // Global search across text columns
   const searchCols = cfg.columns
-    .filter(c => !['id', 'sr_no'].includes(c.key) && c.type !== 'number' && c.type !== 'datetime' && c.type !== 'date')
+    .filter(c => c.key !== 'id' && c.type !== 'number' && c.type !== 'datetime' && c.type !== 'date')
     .slice(0, 8)
     .map(c => c.key)
 

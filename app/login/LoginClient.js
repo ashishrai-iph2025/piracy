@@ -73,13 +73,11 @@ export default function LoginPage() {
               color: '#fff',
               fontWeight: '800',
             }}>
-              P
+              API
             </div>
           </div>
           <div style={{ height: '1px', background: 'var(--border)', margin: '16px 0' }} />
-          <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '4px' }}>
-            Piracy
-          </h2>
+          
           <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#FC934C' }}>
             Monitoring System
           </h2>

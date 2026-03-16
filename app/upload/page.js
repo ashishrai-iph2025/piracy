@@ -387,7 +387,6 @@ function truncate(str, n = 40) {
 
 function colMinWidth(col) {
   if (col.key === 'id')                                      return '60px'
-  if (col.key === 'sr_no')                                   return '70px'
   if (col.type === 'url')                                    return '180px'
   if (col.type === 'status')                                 return '130px'
   if (col.type === 'datetime' || col.type === 'date')        return '130px'
@@ -1117,7 +1116,7 @@ function UploadPageInner() {
                           <span style={{ fontSize: '11px', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>
                             {row[col.key] ? utcToIstDisplay(row[col.key], col.type) : '—'}
                           </span>
-                        ) : col.key === 'id' || col.key === 'sr_no' ? (
+                        ) : col.key === 'id' ? (
                           <span style={{ fontFamily: 'monospace', fontSize: '11px', color: 'var(--text-muted)' }}>
                             {row[col.key] ?? '—'}
                           </span>

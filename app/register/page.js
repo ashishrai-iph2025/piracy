@@ -64,7 +64,7 @@ export default function RegisterPage() {
           </div>
           <h1 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '4px' }}>Create Account</h1>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-            Join Piracy Monitoring System
+            Join API Monitoring System
           </p>
         </div>
 

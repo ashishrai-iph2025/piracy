@@ -666,7 +666,7 @@ export default function AdminPage() {
                     </div>
                     <div>
                       <label className="form-label">From Name</label>
-                      <input className="form-input" value={emailForm.from_name} onChange={e => setEmailForm(f => ({ ...f, from_name: e.target.value }))} placeholder="Piracy Monitoring System" />
+                      <input className="form-input" value={emailForm.from_name} onChange={e => setEmailForm(f => ({ ...f, from_name: e.target.value }))} placeholder="API Monitoring System" />
                     </div>
                     <div>
                       <label className="form-label">From Email</label>

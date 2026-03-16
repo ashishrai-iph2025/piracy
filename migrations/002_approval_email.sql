@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS email_config (
   smtp_secure   TINYINT(1)   NOT NULL DEFAULT 0,
   smtp_user     VARCHAR(255) NOT NULL,
   smtp_pass     VARCHAR(255) NOT NULL,
-  from_name     VARCHAR(128) NOT NULL DEFAULT 'Piracy Monitoring System',
+  from_name     VARCHAR(128) NOT NULL DEFAULT 'API Monitoring System',
   from_email    VARCHAR(255) NOT NULL,
   is_active     TINYINT(1)   NOT NULL DEFAULT 1,
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,

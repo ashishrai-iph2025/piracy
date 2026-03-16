@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npm install:*)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(find /d/VM/piracy -type f \\\\\\(-name *.xlsx -o -name *.csv -o -iname *template* \\\\\\) -not -path */node_modules/*)"
     ]
   }
 }
