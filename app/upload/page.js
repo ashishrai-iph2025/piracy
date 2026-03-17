@@ -674,8 +674,9 @@ function UploadPageInner() {
   const router       = useRouter()
   const searchParams = useSearchParams()
 
-  const [userName, setUserName]   = useState('')
-  const [userRole, setUserRole]   = useState('user')
+  const [userName, setUserName]           = useState('')
+  const [userRole, setUserRole]           = useState('user')
+  const [viewableModules, setViewableModules] = useState(null)
   const [activeSheet, setActiveSheet] = useState('Unauthorized Search Result')
   const [data, setData]           = useState([])
   const [total, setTotal]         = useState(0)
@@ -719,7 +720,7 @@ function UploadPageInner() {
   useEffect(() => {
     fetch('/api/auth/check').then(r => r.json()).then(d => {
       if (!d.authenticated) router.push('/login?session_expired=1')
-      else { setUserName(d.userName); setUserRole(d.role || 'user') }
+      else { setUserName(d.userName); setUserRole(d.role || 'user'); setViewableModules(d.viewableModules ?? null) }
     })
   }, [router])
 
@@ -921,7 +922,7 @@ function UploadPageInner() {
 
         {/* Module Tabs */}
         <div className="tab-bar" style={{ overflowX: 'auto', flexWrap: 'nowrap' }}>
-          {SHEET_NAV.map(nav => (
+          {SHEET_NAV.filter(nav => viewableModules === null || (Array.isArray(viewableModules) && viewableModules.includes(nav.key))).map(nav => (
             <button key={nav.key}
               className={`tab-btn ${activeSheet === nav.key ? 'active' : ''}`}
               onClick={() => setActiveSheet(nav.key)}

@@ -48,22 +48,19 @@ async function logUsage(tokenId, endpoint, params, ip, statusCode) {
 }
 
 export async function GET(req, { params }) {
-  const tableName = params.table
-  const cfg = TABLE_CONFIG[tableName]
-
-  if (!cfg) {
-    return NextResponse.json({
-      error: `Unknown table: "${tableName}"`,
-      available_tables: Object.keys(TABLE_CONFIG),
-    }, { status: 404 })
-  }
-
   const tokenData = await validateToken(req)
   if (!tokenData) {
     return NextResponse.json(
       { error: 'Unauthorized — provide a valid Bearer token via Authorization header' },
       { status: 401 }
     )
+  }
+
+  const tableName = params.table
+  const cfg = TABLE_CONFIG[tableName]
+
+  if (!cfg) {
+    return NextResponse.json({ error: `Unknown table: "${tableName}"` }, { status: 404 })
   }
 
   const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown'
