@@ -4,5 +4,8 @@ const nextConfig = {
     serverActions: { bodySizeLimit: '50mb' },
     serverComponentsExternalPackages: ['mysql2', 'xlsx'],
   },
+  images: {
+    unoptimized: true,
+  },
 }
 module.exports = nextConfig

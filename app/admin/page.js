@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import IpHouseLoader from '@/components/IpHouseLoader'
 
 const PERM_FIELDS = [
   { key: 'can_view', label: 'View', icon: 'fa-eye' },
@@ -451,7 +452,7 @@ export default function AdminPage() {
         {/* ── Users Tab ── */}
         {tab === 'users' && (
           <div className="table-wrapper">
-            {loadingUsers && <div style={{ padding: '40px', textAlign: 'center' }}><div className="spinner" style={{ margin: '0 auto' }} /></div>}
+            <IpHouseLoader show={loadingUsers} size="sm" text="Loading users…" />
             {!loadingUsers && (
               <div className="table-scroll">
                 <table className="data-table">
@@ -555,7 +556,7 @@ export default function AdminPage() {
                   : approvalResult.error}
               </div>
             )}
-            {loadingPending && <div style={{ padding: '60px', textAlign: 'center' }}><div className="spinner" style={{ margin: '0 auto' }} /></div>}
+            <IpHouseLoader show={loadingPending} size="sm" text="Loading requests…" />
             {!loadingPending && pendingUsers.length === 0 && (
               <div style={{ padding: '60px 20px', textAlign: 'center' }}>
                 <i className="fas fa-check-circle" style={{ fontSize: '40px', color: 'var(--green)', marginBottom: '12px', display: 'block' }} />
@@ -694,7 +695,7 @@ export default function AdminPage() {
               </div>
             )}
 
-            {loadingEmail && <div style={{ padding: '60px', textAlign: 'center' }}><div className="spinner" style={{ margin: '0 auto' }} /></div>}
+            <IpHouseLoader show={loadingEmail} size="sm" text="Loading config…" />
             {!loadingEmail && emailConfigs.length === 0 && !showEmailForm && (
               <div style={{ padding: '60px 20px', textAlign: 'center' }}>
                 <i className="fas fa-envelope-open-text" style={{ fontSize: '40px', color: 'var(--text-muted)', marginBottom: '12px', display: 'block' }} />
@@ -773,7 +774,7 @@ export default function AdminPage() {
             )}
 
             {loadingPerms ? (
-              <div style={{ padding: '60px', textAlign: 'center' }}><div className="spinner" style={{ margin: '0 auto' }} /></div>
+              <div style={{ padding: '60px', textAlign: 'center' }}><IpHouseLoader show={loadingPerms} size="sm" text="Loading permissions…" /></div>
             ) : (
               <div className="table-wrapper">
                 <div className="table-scroll">
@@ -956,7 +957,7 @@ export default function AdminPage() {
                 </button>
               </div>
               {loadingTokens ? (
-                <div style={{ padding: '30px', textAlign: 'center' }}><div className="spinner" style={{ margin: '0 auto' }} /></div>
+                <div style={{ padding: '30px', textAlign: 'center' }}><IpHouseLoader show={loadingTokens} size="sm" text="Loading tokens…" /></div>
               ) : apiTokens.length === 0 ? (
                 <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>No tokens generated yet</div>
               ) : (

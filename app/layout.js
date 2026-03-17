@@ -4,6 +4,10 @@ import ClientLayout from '@/components/ClientLayout'
 export const metadata = {
   title: 'API Monitoring System',
   description: 'API monitoring and enforcement tracking system',
+  icons: {
+    icon: '/favicon1.svg',
+    shortcut: '/favicon1.svg',
+  },
 }
 
 export default function RootLayout({ children }) {

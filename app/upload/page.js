@@ -376,6 +376,7 @@ import Link from 'next/link'
 import { Suspense } from 'react'
 import { SHEET_NAV, SHEET_CONFIG, REMOVAL_STATUSES, getStatusBadgeClass } from '@/lib/sheetConfig'
 import { validateForm } from '@/lib/validation'
+import IpHouseLoader from '@/components/IpHouseLoader'
 import { utcToIstDisplay, utcToIstForInput, utcToIstDateForInput } from '@/lib/timezone'
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -457,7 +458,7 @@ function EditModal({ sheetName, rowId, onClose, onSaved }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '20px' }}>×</button>
         </div>
         <div className="modal-body">
-          {!row && !error && <div style={{ textAlign: 'center', padding: '40px' }}><div className="spinner" style={{ margin: '0 auto' }} /></div>}
+          <IpHouseLoader show={!row && !error} size="sm" text="Loading record…" />
           {error && <div style={{ color: 'var(--red)', background: 'rgba(239,68,68,.1)', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>{error}</div>}
           {row && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
@@ -677,7 +678,10 @@ function UploadPageInner() {
   const [userName, setUserName]           = useState('')
   const [userRole, setUserRole]           = useState('user')
   const [viewableModules, setViewableModules] = useState(null)
-  const [activeSheet, setActiveSheet] = useState('Unauthorized Search Result')
+  const initialSheet = searchParams.get('sheet')
+  const [activeSheet, setActiveSheet] = useState(
+    (initialSheet && SHEET_CONFIG[initialSheet]) ? initialSheet : 'Unauthorized Search Result'
+  )
   const [data, setData]           = useState([])
   const [total, setTotal]         = useState(0)
   const [page, setPage]           = useState(1)
@@ -715,6 +719,7 @@ function UploadPageInner() {
 
   const searchTimeout = useRef(null)
   const filterTimeout = useRef(null)
+  const fetchIdRef    = useRef(0)
 
   // Auth
   useEffect(() => {
@@ -769,6 +774,7 @@ function UploadPageInner() {
 
   // fetchData — all sort/filter params passed explicitly
   const fetchData = useCallback(async (pg, lim, q, sheet, sc, sd, cf) => {
+    const reqId = ++fetchIdRef.current
     setLoading(true); setPermDenied(false)
     try {
       const p = new URLSearchParams({ sheet, page: pg, limit: lim, search: q || '', sort_col: sc, sort_dir: sd })
@@ -776,15 +782,17 @@ function UploadPageInner() {
         if (v && v.trim()) p.set(`f_${k}`, v.trim())
       }
       const res = await fetch(`/api/data?${p}`)
+      if (reqId !== fetchIdRef.current) return  // stale — a newer request is in flight, discard
       if (res.status === 401) { router.push('/login?session_expired=1'); return }
       if (res.status === 403) { setPermDenied(true); setData([]); setTotal(0); setPerms({}); return }
       const d = await res.json()
+      if (reqId !== fetchIdRef.current) return  // stale
       setData(d.data || [])
       setTotal(d.total || 0)
       setStats(d.stats || { total: 0, removed: 0 })
       setPerms(d.permissions || {})
     } catch (e) { console.error(e) }
-    finally { setLoading(false) }
+    finally { if (reqId === fetchIdRef.current) setLoading(false) }
   }, [router])
 
   // Reload when sheet changes — reset all filters/sort
@@ -1049,11 +1057,7 @@ function UploadPageInner() {
 
         {/* Table */}
         {!permDenied && <div className="table-wrapper" style={{ position: 'relative' }}>
-          {loading && (
-            <div style={{ position: 'absolute', inset: 0, background: 'rgba(11,17,32,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: 'var(--radius)' }}>
-              <div className="spinner" />
-            </div>
-          )}
+          <IpHouseLoader show={loading} overlay size="md" text="Loading data…" />
 
           <div className="table-scroll">
             <table className="data-table">

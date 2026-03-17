@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import IpHouseLoader from '@/components/IpHouseLoader'
 import { SHEET_NAV } from '@/lib/sheetConfig'
 
 // ── Chart colors
@@ -576,12 +577,7 @@ export default function DashboardPage() {
         )}
 
         {/* ── Loading spinner ── */}
-        {loading && !data && (
-          <div style={{ textAlign:'center', padding:'60px', color:'var(--text-secondary)' }}>
-            <div className="spinner" style={{ margin:'0 auto 16px', width:'36px', height:'36px', borderWidth:'3px' }} />
-            <div>Loading dashboard data…</div>
-          </div>
-        )}
+        <IpHouseLoader show={loading && !data} size="lg" text="Loading dashboard…" />
 
         {data && (
           <>

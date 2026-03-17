@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import IpHouseLoader from '@/components/IpHouseLoader'
 
 function getActionBadgeClass(action) {
   if (!action) return 'badge-gray'
@@ -108,7 +109,7 @@ export default function ActivityPage() {
         <div className="table-wrapper">
           {loading ? (
             <div style={{ textAlign: 'center', padding: '60px' }}>
-              <div className="spinner" style={{ margin: '0 auto' }} />
+              <IpHouseLoader show={loading} size="md" text="Loading activity…" />
             </div>
           ) : (
             <>

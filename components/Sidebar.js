@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { SHEET_NAV } from '@/lib/sheetConfig'
 import { useTheme, THEMES } from './ThemeProvider'
 
@@ -45,19 +46,21 @@ export default function Sidebar({ open, onToggle }) {
     <aside className={`sidebar${open ? '' : ' sidebar-hidden'}`}>
 
       {/* ── Brand + collapse toggle ── */}
-      <div className="sidebar-brand">
-        <div className="sidebar-logo">
-          <i className="fas fa-shield-halved" />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="sidebar-title">Piracy Reports</div>
-          <div className="sidebar-subtitle">Monitoring System</div>
-        </div>
+      <div className="sidebar-brand" style={{ justifyContent: 'space-between', padding: '12px 14px' }}>
+        <Image
+          src="/sidebar_top.png"
+          alt="IP House"
+          width={150}
+          height={32}
+          style={{ objectFit: 'contain', objectPosition: 'left center', maxWidth: '160px', height: '32px', flexShrink: 1 }}
+          priority
+        />
         <button
           className="sidebar-collapse-btn"
           onClick={onToggle}
           title="Collapse sidebar"
           aria-label="Toggle sidebar"
+          style={{ flexShrink: 0, marginLeft: '8px' }}
         >
           <i className="fas fa-chevron-left" />
         </button>

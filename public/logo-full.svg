@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 320" fill="none">
+  <!-- Icon bars -->
+  <rect x="0" y="190" width="72" height="130" rx="6" fill="#112043"/>
+  <rect x="95" y="130" width="72" height="190" rx="6" fill="#112043"/>
+  <rect x="190" y="68" width="72" height="252" rx="6" fill="#112043"/>
+  <path d="M284 0 L420 60 L420 320 L284 320 Z" fill="#112043"/>
+  <!-- IP HOUSE text -->
+  <text x="470" y="255" font-family="Inter, Arial Black, Arial, sans-serif" font-weight="900" font-size="210" letter-spacing="8" fill="#112043">IP HOUSE</text>
+</svg>
