@@ -732,6 +732,19 @@ function UploadPageInner() {
     }
   }, [searchParams])
 
+  // After permissions load, redirect to first accessible module if current one is not permitted
+  useEffect(() => {
+    if (viewableModules === null) return // null = admin, all allowed
+    const sheetFromUrl = searchParams.get('sheet')
+    const current = sheetFromUrl || activeSheet
+    const allowed = SHEET_NAV.filter(n => viewableModules.includes(n.key))
+    if (!allowed.length) return
+    if (!viewableModules.includes(current)) {
+      setActiveSheet(allowed[0].key)
+      router.replace(`/upload?sheet=${encodeURIComponent(allowed[0].key)}`)
+    }
+  }, [viewableModules])
+
   // Keepalive
   useEffect(() => {
     const t = setInterval(() => fetch('/api/auth/check'), 5 * 60 * 1000)
