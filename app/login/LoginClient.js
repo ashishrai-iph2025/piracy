@@ -146,17 +146,7 @@ export default function LoginPage() {
         {/* Center content */}
         <div style={{ position: 'relative', zIndex: 1 }}>
           {/* Big icon */}
-          <div style={{
-            width: '80px', height: '80px',
-            background: 'rgba(255,255,255,0.08)',
-            borderRadius: '24px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            marginBottom: '32px',
-            backdropFilter: 'blur(8px)',
-            border: '1px solid rgba(255,255,255,0.12)',
-          }}>
-            <IpHouseIcon size={44} dark={true} />
-          </div>
+          
 
           <h1 style={{
             color: '#ffffff',
@@ -174,7 +164,7 @@ export default function LoginPage() {
             lineHeight: 1.7,
             maxWidth: '320px',
           }}>
-            Centralised enforcement tracking, API analytics, and reporting — all in one place.
+            Centralised tracking, API analytics, and reporting — all in one place.
           </p>
 
           {/* Feature pills */}
@@ -182,7 +172,7 @@ export default function LoginPage() {
             {[
               { icon: 'fa-shield-halved', text: 'Role-based access control' },
               { icon: 'fa-chart-line',    text: 'Real-time analytics dashboard' },
-              { icon: 'fa-bolt',          text: 'Automated enforcement workflows' },
+              
             ].map(f => (
               <div key={f.icon} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <div style={{
@@ -476,9 +466,7 @@ export default function LoginPage() {
           </div>
 
           {/* Below card note */}
-          <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '11px', color: panel.textMuted }}>
-            Protected by enterprise-grade security &nbsp;·&nbsp; IP House &copy; {new Date().getFullYear()}
-          </p>
+          
         </div>
       </div>
 
