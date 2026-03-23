@@ -5,11 +5,11 @@ import { query } from '@/lib/db'
 async function ensureTable() {
   await query(`
     CREATE TABLE IF NOT EXISTS user_preferences (
-      user_id      INT UNSIGNED PRIMARY KEY,
-      theme        VARCHAR(30)  DEFAULT 'blue',
-      mode         VARCHAR(10)  DEFAULT 'dark',
-      custom_color VARCHAR(7)   DEFAULT '#3b82f6',
-      updated_at   DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      user_id      CHAR(36)    NOT NULL PRIMARY KEY,
+      theme        VARCHAR(30) DEFAULT 'blue',
+      mode         VARCHAR(10) DEFAULT 'dark',
+      custom_color VARCHAR(7)  DEFAULT '#3b82f6',
+      updated_at   DATETIME    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )
   `)
 }

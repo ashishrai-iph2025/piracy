@@ -15,6 +15,7 @@ function toHeader(col) {
 
 function getHint(col, mysqlType) {
   const t = mysqlType.toLowerCase()
+  if (col === 'id' || col.endsWith('_id')) return 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (UUID)'
   if (t.startsWith('datetime')) return 'YYYY-MM-DD HH:MM:SS (IST)'
   if (t.startsWith('date'))     return 'YYYY-MM-DD (IST)'
   if (col.includes('url'))      return 'https://example.com'
@@ -75,13 +76,33 @@ export async function GET(req) {
     uploadCols = dbCols.filter(c => c.Field !== 'id' && !SKIP_COLS.has(c.Field) && !SKIP_SUFFIX.some(s => c.Field.endsWith(s)))
   }
 
+  // ── Apply saved template column config (order + visibility) ────────────────
+  try {
+    const savedCfg = await query(
+      'SELECT column_keys FROM template_column_config WHERE sheet_name = ? AND template_type = ?',
+      [sheetName, type]
+    )
+    if (savedCfg.length) {
+      const savedKeys = JSON.parse(savedCfg[0].column_keys)
+      const colMap = Object.fromEntries(uploadCols.map(c => [c.Field, c]))
+      // For update template: always keep id first regardless of saved order
+      if (type === 'update') {
+        const idCol = uploadCols.find(c => c.Field === 'id')
+        const rest  = savedKeys.filter(k => k !== 'id' && colMap[k]).map(k => colMap[k])
+        uploadCols  = idCol ? [idCol, ...rest] : rest
+      } else {
+        uploadCols = savedKeys.filter(k => colMap[k]).map(k => colMap[k])
+      }
+    }
+  } catch (_) { /* if table missing, fall back to default */ }
+
   const headers = uploadCols.map(c => toHeader(c.Field))
   const hints   = uploadCols.map(c => getHint(c.Field, c.Type))
 
   // Sample row for update template to illustrate id usage
   const rows = [headers, hints]
   if (type === 'update') {
-    rows.push(uploadCols.map((c, i) => i === 0 ? '123' : ''))  // example row
+    rows.push(uploadCols.map((c, i) => i === 0 ? 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' : ''))  // example UUID row
   }
 
   const ws = XLSX.utils.aoa_to_sheet(rows)
@@ -97,12 +118,12 @@ export async function GET(req) {
     ['Purpose', 'Update existing records in the system using their database ID.'],
     ['', ''],
     ['STEP 1', 'Download existing data first: use the Download button → CSV export.'],
-    ['STEP 2', 'Open this template. Column A is the ID column — this is REQUIRED for every row.'],
-    ['STEP 3', 'Fill in the ID of the record you want to update (copy from CSV export).'],
+    ['STEP 2', 'Open this template. Column A is the ID column (UUID) — this is REQUIRED for every row.'],
+    ['STEP 3', 'Fill in the UUID of the record you want to update (copy from CSV export — column "id").'],
     ['STEP 4', 'Fill in ONLY the columns you want to change. Leave others blank to keep existing values.'],
     ['STEP 5', 'Save as .xlsx and upload via "Bulk Update" button.'],
     ['', ''],
-    ['IMPORTANT', 'Rows without a valid ID will be skipped.'],
+    ['IMPORTANT', 'Rows without a valid UUID in the ID column will be skipped.'],
     ['IMPORTANT', 'Duplicate URLs will be rejected to prevent data conflicts.'],
     ['IMPORTANT', 'Date columns must be in IST (Asia/Kolkata) timezone — system converts to UTC.'],
     ['', ''],

@@ -632,7 +632,7 @@ export default function DashboardPage() {
                       <div style={{ fontSize:'18px', fontWeight:'800', color:'var(--text-primary)', lineHeight:1 }}>{Number(mod.total).toLocaleString()}</div>
                     </div>
                     <div style={{ padding:'10px 16px' }}>
-                      <div style={{ fontSize:'10px', color:'#22c55e', fontWeight:'600', marginBottom:'2px' }}>ACTIONED</div>
+                      <div style={{ fontSize:'10px', color:'#22c55e', fontWeight:'600', marginBottom:'2px' }}>Removal</div>
                       <div style={{ fontSize:'18px', fontWeight:'800', color:'#22c55e', lineHeight:1 }}>{Number(mod.actioned).toLocaleString()}</div>
                     </div>
                   </div>

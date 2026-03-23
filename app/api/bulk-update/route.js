@@ -72,8 +72,8 @@ export async function POST(req) {
 
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i]
-        const idVal = parseInt(row[idIdx])
-        if (!idVal || isNaN(idVal)) { skipped++; continue }
+        const idVal = String(row[idIdx] || '').trim()
+        if (!idVal) { skipped++; continue }
 
         const updateData = {}
         for (const [idxStr, colKey] of Object.entries(colKeyMap)) {

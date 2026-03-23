@@ -1,5 +1,6 @@
 -- ============================================================
--- PIRACY REPORTING SYSTEM - COMPLETE DATABASE SCHEMA v2
+-- PIRACY REPORTING SYSTEM - COMPLETE DATABASE SCHEMA v3
+-- Primary keys use CHAR(36) UUID (requires MySQL 8.0.13+)
 -- Run: mysql -u piracy_user -p piracy_reporting < database/schema.sql
 -- ============================================================
 
@@ -7,7 +8,7 @@
 -- USERS & AUTH
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS users (
-  id                    INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  id                    CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   first_name            VARCHAR(100) NOT NULL,
   last_name             VARCHAR(100) DEFAULT '',
   username              VARCHAR(100) NOT NULL UNIQUE,
@@ -15,6 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
   password              VARCHAR(64)  NOT NULL COMMENT 'SHA-256 hex',
   role                  ENUM('superadmin','admin','user') NOT NULL DEFAULT 'user',
   is_active             TINYINT(1)   NOT NULL DEFAULT 1,
+  status                ENUM('pending','active','rejected') NOT NULL DEFAULT 'active',
   password_expires_at   DATETIME,
   last_login            DATETIME,
   created_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -27,7 +29,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- MODULES (registry — one row per Excel sheet)
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS modules (
-  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  id          CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   name        VARCHAR(150) NOT NULL UNIQUE COMMENT 'Exact Excel sheet tab name',
   label       VARCHAR(150) NOT NULL,
   route       VARCHAR(100) NOT NULL UNIQUE,
@@ -56,16 +58,16 @@ INSERT IGNORE INTO modules (name, label, route, db_table, icon, color, sort_orde
 -- USER MODULE PERMISSIONS
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS user_module_permissions (
-  id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  user_id          INT UNSIGNED NOT NULL,
-  module_id        INT UNSIGNED NOT NULL,
+  id               CHAR(36)   NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+  user_id          CHAR(36)   NOT NULL,
+  module_id        CHAR(36)   NOT NULL,
   can_view         TINYINT(1) NOT NULL DEFAULT 0,
   can_upload       TINYINT(1) NOT NULL DEFAULT 0,
   can_edit         TINYINT(1) NOT NULL DEFAULT 0,
   can_delete       TINYINT(1) NOT NULL DEFAULT 0,
   can_bulk_update  TINYINT(1) NOT NULL DEFAULT 0,
   can_export       TINYINT(1) NOT NULL DEFAULT 0,
-  granted_by       INT UNSIGNED,
+  granted_by       CHAR(36),
   granted_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_user_module (user_id, module_id),
@@ -79,14 +81,14 @@ CREATE TABLE IF NOT EXISTS user_module_permissions (
 -- USER ACTIVITY LOG
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS user_activity (
-  id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  user_id        INT UNSIGNED NOT NULL,
+  id             CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+  user_id        CHAR(36)     NOT NULL,
   user_name      VARCHAR(100) NOT NULL,
   action         VARCHAR(100) NOT NULL,
   sheet_name     VARCHAR(150),
   file_name      VARCHAR(255),
   records_count  INT DEFAULT 0,
-  record_id      INT UNSIGNED,
+  record_id      CHAR(36),
   ip_address     VARCHAR(45),
   details        TEXT,
   created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -97,22 +99,52 @@ CREATE TABLE IF NOT EXISTS user_activity (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ────────────────────────────────────────────────────────────
+-- USER PREFERENCES
+-- ────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS user_preferences (
+  user_id      CHAR(36)    NOT NULL PRIMARY KEY,
+  theme        VARCHAR(30) DEFAULT 'blue',
+  mode         VARCHAR(10) DEFAULT 'dark',
+  custom_color VARCHAR(7)  DEFAULT '#3b82f6',
+  updated_at   DATETIME    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ────────────────────────────────────────────────────────────
 -- REMOVAL STATUS HISTORY (optional audit trail)
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS removal_status_history (
-  id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  record_id         INT UNSIGNED NOT NULL,
+  id                CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+  record_id         CHAR(36)     NOT NULL,
   sheet_name        VARCHAR(150),
   table_name        VARCHAR(100),
   old_status        VARCHAR(100),
   new_status        VARCHAR(100),
   old_removal_time  DATETIME,
   new_removal_time  DATETIME,
-  updated_by        INT UNSIGNED,
+  updated_by        CHAR(36),
   created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_record  (record_id),
   INDEX idx_table   (table_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ────────────────────────────────────────────────────────────
+-- EMAIL CONFIGURATION
+-- ────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS email_config (
+  id            CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+  purpose       VARCHAR(64)  NOT NULL DEFAULT 'notification',
+  label         VARCHAR(128) NOT NULL DEFAULT 'Default',
+  smtp_host     VARCHAR(255) NOT NULL DEFAULT 'smtp.gmail.com',
+  smtp_port     INT          NOT NULL DEFAULT 587,
+  smtp_secure   TINYINT(1)   NOT NULL DEFAULT 0,
+  smtp_user     VARCHAR(255) NOT NULL,
+  smtp_pass     VARCHAR(255) NOT NULL,
+  from_name     VARCHAR(128) NOT NULL DEFAULT 'API Monitoring System',
+  from_email    VARCHAR(255) NOT NULL,
+  is_active     TINYINT(1)   NOT NULL DEFAULT 1,
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================
 -- MODULE TABLES
@@ -124,7 +156,7 @@ CREATE TABLE IF NOT EXISTS removal_status_history (
 -- 1. Unauthorized Search Result  →  unique: linking_url
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS unauthorized_search_result (
-  id                             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  id                             CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   sr_no                          INT,
   date_of_identification         DATETIME,
   title                          VARCHAR(512),
@@ -164,7 +196,7 @@ CREATE TABLE IF NOT EXISTS unauthorized_search_result (
   notice_sent_date_yandex        DATETIME,
   removal_status                 VARCHAR(100),
   removal_timestamp              DATETIME,
-  uploaded_by                    INT UNSIGNED,
+  uploaded_by                    CHAR(36),
   upload_batch_id                VARCHAR(64),
   created_at                     DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at                     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -182,7 +214,7 @@ CREATE TABLE IF NOT EXISTS unauthorized_search_result (
 -- 2. Ads Tutorials - Social Media  →  unique: video_posts_urls
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ads_tutorials_social_media (
-  id                             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  id                             CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   sr_no                          INT,
   date_of_identification         DATETIME,
   platform_name                  VARCHAR(100),
@@ -209,7 +241,7 @@ CREATE TABLE IF NOT EXISTS ads_tutorials_social_media (
   url_removal_date               DATETIME,
   notice_id                      VARCHAR(255),
   notice_sent_date               DATETIME,
-  uploaded_by                    INT UNSIGNED,
+  uploaded_by                    CHAR(36),
   upload_batch_id                VARCHAR(64),
   created_at                     DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at                     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -228,7 +260,7 @@ CREATE TABLE IF NOT EXISTS ads_tutorials_social_media (
 -- 3. Password Sharing - Social Media  →  unique: listing_posts_urls
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS password_sharing_social_media (
-  id                             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  id                             CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   sr_no                          INT,
   date_of_identification         DATETIME,
   platform_name                  VARCHAR(100),
@@ -264,7 +296,7 @@ CREATE TABLE IF NOT EXISTS password_sharing_social_media (
   removal_date                   DATETIME,
   notice_id                      VARCHAR(255),
   notice_sent_date               DATETIME,
-  uploaded_by                    INT UNSIGNED,
+  uploaded_by                    CHAR(36),
   upload_batch_id                VARCHAR(64),
   created_at                     DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at                     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -283,7 +315,7 @@ CREATE TABLE IF NOT EXISTS password_sharing_social_media (
 -- 4. Password Sharing - Marketplace  →  unique: listing_url
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS password_sharing_marketplace (
-  id                             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  id                             CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   sr_no                          INT,
   date_of_identification         DATETIME,
   platform_name                  VARCHAR(100),
@@ -320,7 +352,7 @@ CREATE TABLE IF NOT EXISTS password_sharing_marketplace (
   url_status                     VARCHAR(100),
   notice_id                      VARCHAR(255),
   notice_sent_date               DATETIME,
-  uploaded_by                    INT UNSIGNED,
+  uploaded_by                    CHAR(36),
   upload_batch_id                VARCHAR(64),
   created_at                     DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at                     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -340,7 +372,7 @@ CREATE TABLE IF NOT EXISTS password_sharing_marketplace (
 -- 5. IPTV & Apps - Internet  →  unique: source_url
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS iptv_apps_internet (
-  id                             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  id                             CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   sr_no                          INT,
   identification_date            DATETIME,
   week_bise                      VARCHAR(50),
@@ -393,7 +425,7 @@ CREATE TABLE IF NOT EXISTS iptv_apps_internet (
   removal_date                   DATE,
   tat                            VARCHAR(100),
   additional_remarks             TEXT,
-  uploaded_by                    INT UNSIGNED,
+  uploaded_by                    CHAR(36),
   upload_batch_id                VARCHAR(64),
   created_at                     DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at                     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -413,7 +445,7 @@ CREATE TABLE IF NOT EXISTS iptv_apps_internet (
 -- 6. IPTV & Apps - Apps  →  unique: source_url
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS iptv_apps_apps (
-  id                             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  id                             CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   sr_no                          INT,
   identification_date            DATETIME,
   week_bise                      VARCHAR(50),
@@ -464,7 +496,7 @@ CREATE TABLE IF NOT EXISTS iptv_apps_apps (
   removal_date                   DATE,
   tat                            VARCHAR(100),
   remarks                        TEXT,
-  uploaded_by                    INT UNSIGNED,
+  uploaded_by                    CHAR(36),
   upload_batch_id                VARCHAR(64),
   created_at                     DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at                     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -485,7 +517,7 @@ CREATE TABLE IF NOT EXISTS iptv_apps_apps (
 -- 7. IPTV & Apps - Social Media  →  unique: source_url
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS iptv_apps_social_media (
-  id                             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  id                             CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   sr_no                          INT,
   identification_date            DATETIME,
   week_bise                      VARCHAR(50),
@@ -513,7 +545,7 @@ CREATE TABLE IF NOT EXISTS iptv_apps_social_media (
   removal_date                   DATE,
   tat                            VARCHAR(100),
   additional_remarks             TEXT,
-  uploaded_by                    INT UNSIGNED,
+  uploaded_by                    CHAR(36),
   upload_batch_id                VARCHAR(64),
   created_at                     DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at                     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -533,7 +565,7 @@ CREATE TABLE IF NOT EXISTS iptv_apps_social_media (
 -- 8. IPTV & Apps - Marketplace  →  unique: source_url
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS iptv_apps_marketplace (
-  id                             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  id                             CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   sr_no                          INT,
   identification_date            DATETIME,
   week_bise                      VARCHAR(50),
@@ -570,7 +602,7 @@ CREATE TABLE IF NOT EXISTS iptv_apps_marketplace (
   removal_date                   DATE,
   tat                            VARCHAR(100),
   additional_remarks             TEXT,
-  uploaded_by                    INT UNSIGNED,
+  uploaded_by                    CHAR(36),
   upload_batch_id                VARCHAR(64),
   created_at                     DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at                     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -591,7 +623,7 @@ CREATE TABLE IF NOT EXISTS iptv_apps_marketplace (
 -- 9. IPTV & Apps - Meta Ads  →  unique: source_url
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS iptv_apps_meta_ads (
-  id                             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  id                             CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   sr_no                          INT,
   identification_date            DATETIME,
   week_bise                      VARCHAR(50),
@@ -622,7 +654,7 @@ CREATE TABLE IF NOT EXISTS iptv_apps_meta_ads (
   removal_date                   DATE,
   tat                            VARCHAR(100),
   remarks                        TEXT,
-  uploaded_by                    INT UNSIGNED,
+  uploaded_by                    CHAR(36),
   upload_batch_id                VARCHAR(64),
   created_at                     DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at                     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -643,9 +675,9 @@ CREATE TABLE IF NOT EXISTS iptv_apps_meta_ads (
 -- API Tokens  (used by /api/v1/* public endpoints)
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS api_tokens (
-  id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  id           CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
   token        VARCHAR(64)  NOT NULL UNIQUE,
-  user_id      INT UNSIGNED NOT NULL,
+  user_id      CHAR(36)     NOT NULL,
   user_name    VARCHAR(100) NOT NULL,
   description  VARCHAR(255),
   expires_at   DATETIME,
@@ -658,8 +690,8 @@ CREATE TABLE IF NOT EXISTS api_tokens (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS api_token_usage (
-  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  token_id    INT UNSIGNED NOT NULL,
+  id          CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+  token_id    CHAR(36)     NOT NULL,
   endpoint    VARCHAR(255),
   params      TEXT,
   ip_address  VARCHAR(45),

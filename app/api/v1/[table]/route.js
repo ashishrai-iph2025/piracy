@@ -106,7 +106,7 @@ export async function GET(req, { params }) {
 
     const rows = await query(
       `SELECT * FROM \`${tableName}\` ${where}
-       ORDER BY id DESC LIMIT ? OFFSET ?`,
+       ORDER BY created_at DESC LIMIT ? OFFSET ?`,
       [...values, limit, offset]
     )
 

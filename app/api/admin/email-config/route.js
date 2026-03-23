@@ -25,7 +25,7 @@ export async function GET(req) {
   if (err) return err
 
   try {
-    const configs = await query('SELECT id, purpose, label, smtp_host, smtp_port, smtp_secure, smtp_user, from_name, from_email, is_active, updated_at FROM email_config ORDER BY id ASC')
+    const configs = await query('SELECT id, purpose, label, smtp_host, smtp_port, smtp_secure, smtp_user, from_name, from_email, is_active, updated_at FROM email_config ORDER BY created_at ASC')
     return NextResponse.json({ configs, purposes: PURPOSE_OPTIONS })
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 })

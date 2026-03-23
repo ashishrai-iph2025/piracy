@@ -17,7 +17,7 @@ export async function GET(req) {
   if (err) return err
 
   const { searchParams } = new URL(req.url)
-  const userId = parseInt(searchParams.get('user_id'))
+  const userId = searchParams.get('user_id')
   if (!userId) return NextResponse.json({ error: 'Missing user_id' }, { status: 400 })
 
   try {

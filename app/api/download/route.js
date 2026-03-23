@@ -86,7 +86,7 @@ export async function GET(req) {
 
   try {
     const rows = await query(
-      `SELECT * FROM \`${cfg.table}\` ${whereClause} ORDER BY id DESC`,
+      `SELECT * FROM \`${cfg.table}\` ${whereClause} ORDER BY created_at DESC`,
       params
     )
 

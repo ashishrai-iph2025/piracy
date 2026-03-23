@@ -15,7 +15,7 @@ export async function GET(req) {
   const page      = Math.max(1, parseInt(searchParams.get('page')  || '1'))
   const limit     = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '25')))
   const search    = searchParams.get('search') || ''
-  const sortCol   = searchParams.get('sort_col') || 'id'
+  const sortCol   = searchParams.get('sort_col') || 'created_at'
   const sortDir   = searchParams.get('sort_dir') === 'asc' ? 'ASC' : 'DESC'
   const offset    = (page - 1) * limit
 
@@ -26,8 +26,9 @@ export async function GET(req) {
   if (!hasPermission(perms, sheetName, 'can_view')) return permErr()
 
   // Validate sortCol against actual column keys to prevent SQL injection
-  const validKeys    = cfg.columns.map(c => c.key)
-  const safeSortCol  = validKeys.includes(sortCol) ? sortCol : 'id'
+  // Exclude id (UUID - not meaningful for sorting) and hash columns
+  const validKeys   = cfg.columns.map(c => c.key).filter(k => k !== 'id')
+  const safeSortCol = validKeys.includes(sortCol) ? sortCol : 'created_at'
 
   // Global search across text columns
   const searchCols = cfg.columns
@@ -101,7 +102,7 @@ export async function DELETE(req) {
 
   const { searchParams } = new URL(req.url)
   const sheetName = searchParams.get('sheet')
-  const id        = parseInt(searchParams.get('id'))
+  const id        = searchParams.get('id')
 
   if (!sheetName || !id) return NextResponse.json({ error: 'Missing sheet or id' }, { status: 400 })
 

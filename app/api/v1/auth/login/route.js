@@ -6,9 +6,9 @@ import crypto from 'crypto'
 async function ensureTables() {
   await query(`
     CREATE TABLE IF NOT EXISTS api_tokens (
-      id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      id           CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
       token        VARCHAR(64)  NOT NULL UNIQUE,
-      user_id      INT UNSIGNED NOT NULL,
+      user_id      CHAR(36)     NOT NULL,
       user_name    VARCHAR(100) NOT NULL,
       description  VARCHAR(255),
       expires_at   DATETIME,
@@ -22,8 +22,8 @@ async function ensureTables() {
   `)
   await query(`
     CREATE TABLE IF NOT EXISTS api_token_usage (
-      id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-      token_id    INT UNSIGNED NOT NULL,
+      id          CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+      token_id    CHAR(36)     NOT NULL,
       endpoint    VARCHAR(255),
       params      TEXT,
       ip_address  VARCHAR(45),

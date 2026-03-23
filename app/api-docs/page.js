@@ -179,11 +179,37 @@ const MODULES = [
 
 const REMOVAL_STATUSES = ['Removed', 'Pending', 'Enforced', 'Not Removed', 'Under Review', 'Appealed', 'Re-uploaded', 'Partial Removal', 'Down', 'Up', 'Active', 'Suspended', 'Approved', 'Rejected']
 
+const V1_TABLES = [
+  { value: 'unauthorized_search_result',  label: 'Unauthorized Search Result' },
+  { value: 'ads_tutorials_social_media',  label: 'Ads Tutorials - Social Media' },
+  { value: 'password_sharing_social_media', label: 'Password Sharing - Social Media' },
+  { value: 'password_sharing_marketplace', label: 'Password Sharing - Marketplace' },
+  { value: 'iptv_apps_internet',          label: 'IPTV & Apps - Internet' },
+  { value: 'iptv_apps_apps',              label: 'IPTV & Apps - Apps' },
+  { value: 'iptv_apps_social_media',      label: 'IPTV & Apps - Social Media' },
+  { value: 'iptv_apps_marketplace',       label: 'IPTV & Apps - Marketplace' },
+  { value: 'iptv_apps_meta_ads',          label: 'IPTV & Apps - Meta Ads' },
+]
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function ApiDocsPage() {
   const [tab, setTab]           = useState('overview')
   const [authorized, setAuthorized] = useState(null)
   const router = useRouter()
+
+  // ── Interactive Playground state ───────────────────────────────────────────
+  const [v1Token,       setV1Token]       = useState('')
+  const [v1Endpoint,    setV1Endpoint]    = useState('login')
+  const [v1LoginUser,   setV1LoginUser]   = useState('')
+  const [v1LoginPass,   setV1LoginPass]   = useState('')
+  const [v1Table,       setV1Table]       = useState('unauthorized_search_result')
+  const [v1Page,        setV1Page]        = useState('1')
+  const [v1Limit,       setV1Limit]       = useState('10')
+  const [v1DateFrom,    setV1DateFrom]    = useState('')
+  const [v1DateTo,      setV1DateTo]      = useState('')
+  const [v1Title,       setV1Title]       = useState('')
+  const [v1Response,    setV1Response]    = useState(null)   // { status, data, time, error }
+  const [v1Loading,     setV1Loading]     = useState(false)
 
   useEffect(() => {
     fetch('/api/auth/check').then(r => r.json()).then(d => {
@@ -191,6 +217,41 @@ export default function ApiDocsPage() {
       else setAuthorized(false)
     }).catch(() => setAuthorized(false))
   }, [])
+
+  async function executeV1() {
+    setV1Loading(true); setV1Response(null)
+    const t0 = Date.now()
+    try {
+      let res, data
+      if (v1Endpoint === 'login') {
+        res  = await fetch('/api/v1/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: v1LoginUser, password: v1LoginPass }),
+        })
+        data = await res.json()
+        if (data.token) setV1Token(data.token)
+      } else if (v1Endpoint === 'table') {
+        const params = new URLSearchParams({ page: v1Page || '1', limit: v1Limit || '10' })
+        if (v1DateFrom) params.set('date_from', v1DateFrom)
+        if (v1DateTo)   params.set('date_to',   v1DateTo)
+        if (v1Title)    params.set('title',      v1Title)
+        res  = await fetch(`/api/v1/${v1Table}?${params}`, {
+          headers: v1Token ? { Authorization: `Bearer ${v1Token}` } : {},
+        })
+        data = await res.json()
+      } else {
+        res  = await fetch('/api/v1/modules', {
+          headers: v1Token ? { Authorization: `Bearer ${v1Token}` } : {},
+        })
+        data = await res.json()
+      }
+      setV1Response({ status: res.status, data, time: Date.now() - t0 })
+    } catch (e) {
+      setV1Response({ status: 0, data: null, error: e.message, time: Date.now() - t0 })
+    }
+    setV1Loading(false)
+  }
 
   if (authorized === null) return null
   if (!authorized) return (
@@ -398,11 +459,12 @@ export default function ApiDocsPage() {
                 { name: 'f_<key>',  type: 'string',  required: false, desc: 'Per-column filter, e.g. f_removal_status=Removed' },
               ]}
               resBody={`{
-  "data":    [ { "id": 1, "title": "...", "removal_status": "Removed", ... } ],
-  "total":   1247,
+  "data":    [ { "id": "537cacdc-251b-11f1-bb0f-00ff85e28522", "title": "...", "removal_status": "Removed", ... } ],
+  "total":   6144,
   "page":    1,
   "limit":   25,
-  "columns": [ { "key": "title", "label": "Title", "type": "text" }, ... ]
+  "pages":   246,
+  "stats":   { "total": 6144, "removed": 4120 }
 }`}
             />
 
@@ -411,8 +473,8 @@ export default function ApiDocsPage() {
               summary="Delete a single record"
               desc="Permanently deletes a record by ID. Requires can_delete permission on the module."
               params={[
-                { name: 'sheet', type: 'string',  required: true, desc: 'Module name' },
-                { name: 'id',    type: 'integer', required: true, desc: 'Record ID to delete' },
+                { name: 'sheet', type: 'string', required: true, desc: 'Module name' },
+                { name: 'id',    type: 'UUID',   required: true, desc: 'Record UUID to delete (CHAR(36))' },
               ]}
               resBody={`{ "success": true }
 // or
@@ -425,11 +487,11 @@ export default function ApiDocsPage() {
               summary="Fetch single record for editing"
               desc="Returns a single record with datetime values pre-converted from UTC to IST for display in the edit form. Requires can_edit permission."
               params={[
-                { name: 'sheet', type: 'string',  required: true, desc: 'Module name' },
-                { name: 'id',    type: 'integer', required: true, desc: 'Record ID' },
+                { name: 'sheet', type: 'string', required: true, desc: 'Module name' },
+                { name: 'id',    type: 'UUID',   required: true, desc: 'Record UUID (CHAR 36)' },
               ]}
               resBody={`{
-  "row":     { "id": 1, "title": "...", "date_of_identification": "2024-01-15T10:30:00", ... },
+  "row":     { "id": "537cacdc-251b-11f1-bb0f-00ff85e28522", "title": "...", "date_of_identification": "2024-01-15T10:30:00", ... },
   "columns": [ { "key": "title", "label": "Title", "type": "text" }, ... ]
 }
 // Dates are in IST (UTC+5:30) for display in the UI`}
@@ -441,7 +503,7 @@ export default function ApiDocsPage() {
               desc="Updates any fields of a record. Datetime values should be sent as IST — the API converts to UTC before saving. Enforces unique URL constraint. Requires can_edit permission."
               reqBody={`{
   "sheet": "Unauthorized Search Result",
-  "id":    42,
+  "id":    "537cacdc-251b-11f1-bb0f-00ff85e28522",
   "data": {
     "title":            "Updated Title",
     "removal_status":   "Removed",
@@ -485,7 +547,10 @@ export default function ApiDocsPage() {
               desc="Updates removal_status and/or other fields for a list of IDs in one call. Fastest for status-only updates. Requires can_bulk_update permission."
               reqBody={`{
   "sheet":              "Unauthorized Search Result",
-  "ids":                [1, 5, 12, 47],
+  "ids": [
+    "537cacdc-251b-11f1-bb0f-00ff85e28522",
+    "537cb3b7-251b-11f1-bb0f-00ff85e28522"
+  ],
   "removal_status":     "Removed",              // optional
   "removal_timestamp":  "2024-06-01 10:00:00",  // optional, UTC
   "fields": {                                    // optional — any other columns
@@ -808,67 +873,378 @@ export default function ApiDocsPage() {
           <div>
             <SectionTitle icon="fa-terminal" title="External API v1" subtitle="Token-based REST API for external integrations and automation. Authentication via Bearer token in the Authorization header." />
 
-            <div className="card" style={{ padding: '16px 20px', marginBottom: '16px', background: 'rgba(139,92,246,.05)', border: '1px solid rgba(139,92,246,.2)' }}>
-              <div style={{ fontWeight: '700', fontSize: '13px', marginBottom: '8px' }}><i className="fas fa-key" style={{ color: '#8b5cf6', marginRight: '6px' }} />Token Authentication</div>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: '10px' }}>
-                All v1 endpoints require a Bearer token in the Authorization header. Tokens are managed by admins via Admin Panel → API Playground → Generate Token.
+            {/* Token auth info */}
+            <div className="card" style={{ padding: '14px 18px', marginBottom: '20px', background: 'rgba(139,92,246,.05)', border: '1px solid rgba(139,92,246,.2)' }}>
+              <div style={{ fontWeight: '700', fontSize: '13px', marginBottom: '6px' }}><i className="fas fa-key" style={{ color: '#8b5cf6', marginRight: '6px' }} />Token Authentication</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: '8px' }}>
+                All v1 endpoints require a Bearer token in the Authorization header. Tokens are managed by admins via Admin Panel → API Playground → Generate Token. Use the playground below to obtain a token and test live requests.
               </div>
               <Code>{`Authorization: Bearer tok_abc123def456...`}</Code>
+            </div>
+
+            {/* ── Interactive Playground ───────────────────────────────────── */}
+            <div className="card" style={{ marginBottom: '28px', padding: 0, overflow: 'hidden', border: '1px solid rgba(139,92,246,.3)' }}>
+              {/* Playground header */}
+              <div style={{ padding: '13px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(139,92,246,.06)' }}>
+                <i className="fas fa-flask" style={{ color: '#8b5cf6', fontSize: '15px' }} />
+                <span style={{ fontWeight: '800', fontSize: '14px' }}>Interactive Playground</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>— make live API calls directly from the browser</span>
+                {v1Token && (
+                  <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--green)', display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(34,197,94,.1)', border: '1px solid rgba(34,197,94,.3)', borderRadius: '5px', padding: '3px 8px' }}>
+                    <i className="fas fa-check-circle" />Token active
+                  </span>
+                )}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '230px 1fr' }}>
+
+                {/* ── Left: endpoint selector + token ── */}
+                <div style={{ borderRight: '1px solid var(--border)', background: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', padding: '16px 12px', gap: '4px' }}>
+                  <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.6px', marginBottom: '6px' }}>Endpoints</div>
+
+                  {[
+                    { id: 'login',   method: 'POST', label: '/api/v1/auth/login', icon: 'fa-key',   desc: 'Generate token' },
+                    { id: 'table',   method: 'GET',  label: '/api/v1/[table]',   icon: 'fa-table', desc: 'Query records' },
+                    { id: 'modules', method: 'GET',  label: '/api/v1/modules',   icon: 'fa-list',  desc: 'List modules' },
+                  ].map(ep => (
+                    <button
+                      key={ep.id}
+                      onClick={() => { setV1Endpoint(ep.id); setV1Response(null) }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 11px',
+                        borderRadius: '8px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                        background: v1Endpoint === ep.id ? 'rgba(139,92,246,.15)' : 'transparent',
+                        outline: v1Endpoint === ep.id ? '1px solid rgba(139,92,246,.35)' : 'none',
+                        transition: 'background .15s',
+                      }}
+                    >
+                      <MethodBadge method={ep.method} />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '11px', fontFamily: 'monospace', fontWeight: '700', color: v1Endpoint === ep.id ? '#8b5cf6' : 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ep.label}</div>
+                        <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{ep.desc}</div>
+                      </div>
+                    </button>
+                  ))}
+
+                  {/* Token box */}
+                  <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <i className="fas fa-key" />Bearer Token
+                    </div>
+                    <textarea
+                      value={v1Token}
+                      onChange={e => setV1Token(e.target.value)}
+                      placeholder="Paste token or login above to auto-fill…"
+                      rows={3}
+                      style={{ width: '100%', padding: '7px 9px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: '10px', fontFamily: 'monospace', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
+                    />
+                    {v1Token
+                      ? <div style={{ fontSize: '10px', color: 'var(--green)', marginTop: '3px' }}><i className="fas fa-circle-check" style={{ marginRight: '3px' }} />Token ready</div>
+                      : <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>Generate via POST /auth/login</div>
+                    }
+                    {v1Token && (
+                      <button onClick={() => setV1Token('')} style={{ marginTop: '6px', fontSize: '10px', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                        <i className="fas fa-times" style={{ marginRight: '3px' }} />Clear token
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* ── Right: form + response ── */}
+                <div style={{ display: 'flex', flexDirection: 'column', minHeight: '420px' }}>
+
+                  {/* Request form */}
+                  <div style={{ padding: '20px', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '14px' }}>
+                      Request — {v1Endpoint === 'login' ? 'POST /api/v1/auth/login' : v1Endpoint === 'table' ? `GET /api/v1/${v1Table}` : 'GET /api/v1/modules'}
+                    </div>
+
+                    {/* LOGIN fields */}
+                    {v1Endpoint === 'login' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', maxWidth: '560px' }}>
+                        <div>
+                          <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '5px' }}>Username <span style={{ color: '#ef4444' }}>*</span></label>
+                          <input value={v1LoginUser} onChange={e => setV1LoginUser(e.target.value)} placeholder="your_username"
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '13px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '5px' }}>Password <span style={{ color: '#ef4444' }}>*</span></label>
+                          <input type="password" value={v1LoginPass} onChange={e => setV1LoginPass(e.target.value)} placeholder="••••••••"
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '13px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div style={{ gridColumn: '1 / -1' }}>
+                          <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '6px' }}>Request Body Preview</div>
+                          <pre style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '6px', padding: '10px 12px', fontSize: '11px', fontFamily: 'monospace', color: 'var(--text-secondary)', margin: 0 }}>
+{`{
+  "username": "${v1LoginUser || 'your_username'}",
+  "password": "${v1LoginPass ? '••••••••' : 'your_password'}"
+}`}
+                          </pre>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* TABLE fields */}
+                    {v1Endpoint === 'table' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 80px 80px', gap: '12px', maxWidth: '700px' }}>
+                        <div style={{ gridColumn: '1 / -1' }}>
+                          <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '5px' }}>Table <span style={{ color: '#ef4444' }}>*</span></label>
+                          <select value={v1Table} onChange={e => setV1Table(e.target.value)}
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '13px' }}>
+                            {V1_TABLES.map(t => <option key={t.value} value={t.value}>{t.label} ({t.value})</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '5px' }}>date_from</label>
+                          <input type="date" value={v1DateFrom} onChange={e => setV1DateFrom(e.target.value)}
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '13px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '5px' }}>date_to</label>
+                          <input type="date" value={v1DateTo} onChange={e => setV1DateTo(e.target.value)}
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '13px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '5px' }}>page</label>
+                          <input type="number" min="1" value={v1Page} onChange={e => setV1Page(e.target.value)}
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '13px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '5px' }}>limit</label>
+                          <input type="number" min="1" max="100" value={v1Limit} onChange={e => setV1Limit(e.target.value)}
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '13px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div style={{ gridColumn: '1 / 3' }}>
+                          <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '5px' }}>title / keyword filter</label>
+                          <input value={v1Title} onChange={e => setV1Title(e.target.value)} placeholder="Optional keyword search"
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '13px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div style={{ gridColumn: '1 / -1' }}>
+                          <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '4px' }}>Request URL Preview</div>
+                          <pre style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '6px', padding: '8px 12px', fontSize: '11px', fontFamily: 'monospace', color: 'var(--accent)', margin: 0, overflowX: 'auto' }}>
+                            {`GET /api/v1/${v1Table}?page=${v1Page}&limit=${v1Limit}${v1DateFrom ? `&date_from=${v1DateFrom}` : ''}${v1DateTo ? `&date_to=${v1DateTo}` : ''}${v1Title ? `&title=${encodeURIComponent(v1Title)}` : ''}`}
+                          </pre>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* MODULES — no params */}
+                    {v1Endpoint === 'modules' && (
+                      <div style={{ maxWidth: '560px' }}>
+                        <div style={{ padding: '14px 16px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                          <i className="fas fa-circle-info" style={{ color: '#3b82f6', marginRight: '6px' }} />
+                          No parameters required. Returns the list of modules the token owner is authorised to access.
+                          <pre style={{ marginTop: '10px', marginBottom: 0, fontSize: '11px', fontFamily: 'monospace', color: 'var(--accent)' }}>GET /api/v1/modules</pre>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Execute button */}
+                    <div style={{ marginTop: '18px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <button
+                        onClick={executeV1}
+                        disabled={v1Loading || (v1Endpoint !== 'login' && !v1Token)}
+                        style={{
+                          padding: '9px 22px', borderRadius: '7px', border: 'none', cursor: v1Loading || (v1Endpoint !== 'login' && !v1Token) ? 'not-allowed' : 'pointer',
+                          background: v1Loading ? 'var(--bg-secondary)' : '#8b5cf6', color: v1Loading ? 'var(--text-muted)' : '#fff',
+                          fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', transition: 'background .15s',
+                        }}
+                      >
+                        {v1Loading
+                          ? <><div className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px', borderColor: 'rgba(0,0,0,.2)', borderTopColor: '#666' }} />Sending…</>
+                          : <><i className="fas fa-paper-plane" />Send Request</>
+                        }
+                      </button>
+                      {v1Endpoint !== 'login' && !v1Token && (
+                        <span style={{ fontSize: '12px', color: 'var(--amber, #f59e0b)' }}><i className="fas fa-triangle-exclamation" style={{ marginRight: '4px' }} />Set a Bearer token first</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Response panel */}
+                  <div style={{ flex: 1, background: 'var(--bg-secondary)', padding: '16px 20px', overflowY: 'auto', minHeight: '180px' }}>
+                    {!v1Response && !v1Loading && (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '10px', color: 'var(--text-muted)', minHeight: '140px' }}>
+                        <i className="fas fa-circle-play" style={{ fontSize: '28px', opacity: .3 }} />
+                        <span style={{ fontSize: '13px' }}>Hit "Send Request" to see the response here</span>
+                      </div>
+                    )}
+                    {v1Loading && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', minHeight: '140px', color: 'var(--text-muted)' }}>
+                        <div className="spinner" style={{ width: '20px', height: '20px', borderWidth: '2px' }} />
+                        <span style={{ fontSize: '13px' }}>Waiting for response…</span>
+                      </div>
+                    )}
+                    {v1Response && !v1Loading && (
+                      <div>
+                        {/* Status row */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                          <span style={{
+                            fontFamily: 'monospace', fontWeight: '800', fontSize: '15px', padding: '3px 10px', borderRadius: '6px',
+                            background: v1Response.status >= 200 && v1Response.status < 300 ? 'rgba(34,197,94,.15)' : 'rgba(239,68,68,.12)',
+                            color: v1Response.status >= 200 && v1Response.status < 300 ? '#16a34a' : '#dc2626',
+                            border: `1px solid ${v1Response.status >= 200 && v1Response.status < 300 ? 'rgba(34,197,94,.3)' : 'rgba(239,68,68,.3)'}`,
+                          }}>
+                            {v1Response.status === 0 ? 'ERR' : v1Response.status}
+                          </span>
+                          <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{v1Response.time}ms</span>
+                          {v1Response.status >= 200 && v1Response.status < 300
+                            ? <span style={{ fontSize: '12px', color: 'var(--green)' }}><i className="fas fa-check-circle" style={{ marginRight: '4px' }} />Success</span>
+                            : <span style={{ fontSize: '12px', color: 'var(--red)' }}><i className="fas fa-circle-xmark" style={{ marginRight: '4px' }} />{v1Response.error || 'Error'}</span>
+                          }
+                          {v1Response.data?.token && (
+                            <span style={{ fontSize: '11px', color: '#8b5cf6', background: 'rgba(139,92,246,.1)', border: '1px solid rgba(139,92,246,.25)', borderRadius: '5px', padding: '2px 7px' }}>
+                              <i className="fas fa-circle-check" style={{ marginRight: '4px' }} />Token captured automatically
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Summary chips */}
+                        {v1Response.data && typeof v1Response.data === 'object' && !v1Response.data.error && (
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                            {v1Response.data.total !== undefined && (
+                              <span style={{ fontSize: '11px', background: 'rgba(59,130,246,.1)', border: '1px solid rgba(59,130,246,.2)', borderRadius: '5px', padding: '3px 8px', color: '#3b82f6', fontWeight: '600' }}>
+                                {v1Response.data.total?.toLocaleString()} total records
+                              </span>
+                            )}
+                            {Array.isArray(v1Response.data.data) && (
+                              <span style={{ fontSize: '11px', background: 'rgba(34,197,94,.1)', border: '1px solid rgba(34,197,94,.2)', borderRadius: '5px', padding: '3px 8px', color: '#16a34a', fontWeight: '600' }}>
+                                {v1Response.data.data.length} rows returned
+                              </span>
+                            )}
+                            {Array.isArray(v1Response.data.modules) && (
+                              <span style={{ fontSize: '11px', background: 'rgba(34,197,94,.1)', border: '1px solid rgba(34,197,94,.2)', borderRadius: '5px', padding: '3px 8px', color: '#16a34a', fontWeight: '600' }}>
+                                {v1Response.data.modules.length} modules accessible
+                              </span>
+                            )}
+                            {v1Response.data.page !== undefined && v1Response.data.total !== undefined && (
+                              <span style={{ fontSize: '11px', background: 'rgba(139,92,246,.1)', border: '1px solid rgba(139,92,246,.2)', borderRadius: '5px', padding: '3px 8px', color: '#8b5cf6', fontWeight: '600' }}>
+                                Page {v1Response.data.page} of {Math.ceil((v1Response.data.total || 0) / (v1Response.data.limit || 1))}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* JSON body */}
+                        <div style={{ position: 'relative' }}>
+                          <pre style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', fontSize: '11px', fontFamily: 'monospace', overflowX: 'auto', margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6, maxHeight: '340px', overflowY: 'auto' }}>
+                            {v1Response.error && !v1Response.data
+                              ? `Network error: ${v1Response.error}`
+                              : JSON.stringify(v1Response.data, null, 2)}
+                          </pre>
+                          <button
+                            onClick={() => navigator.clipboard.writeText(JSON.stringify(v1Response.data, null, 2))}
+                            style={{ position: 'absolute', top: '8px', right: '8px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '5px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                            Copy
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Endpoint Documentation ── */}
+            <div style={{ fontWeight: '800', fontSize: '13px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.6px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <i className="fas fa-book" />Endpoint Reference
             </div>
 
             <EndpointCard
               method="POST" path="/api/v1/auth/login" auth="none"
               summary="Generate Bearer token"
-              desc="Authenticates with username and password and returns a Bearer token for use in subsequent API calls."
-              reqBody={`{ "username": "john_doe", "password": "yourpassword" }`}
-              resBody={`{
-  "token": "tok_a1b2c3d4e5f6...",
-  "expires_at": null,              // null = no expiry
-  "user": { "id": 1, "name": "John", "role": "user" }
+              desc="Authenticates with username and password and returns a Bearer token for use in subsequent API calls. The token has no expiry by default unless configured by admin."
+              reqBody={`{
+  "username": "john_doe",
+  "password": "yourpassword"
 }`}
+              resBody={`// Success — 200
+{
+  "token":      "tok_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
+  "expires_at": null,
+  "user": {
+    "id":   "92bf05fc-2512-11f1-bb0f-00ff85e28522",
+    "name": "John Doe",
+    "role": "user"
+  }
+}
+
+// Error — 401
+{ "error": "Invalid credentials" }
+
+// Account not active — 403
+{ "error": "Account is inactive or pending approval" }`}
+              notes="Tokens are stored in the api_tokens table and usage is logged in api_token_usage. Tokens can be revoked by admins via Admin Panel → API Playground."
             />
 
             <EndpointCard
               method="GET" path="/api/v1/[table]" auth="token"
               summary="Query records from a table"
-              desc="Returns paginated records from one of the supported tables. Use GET /api/v1/modules to discover which tables you have access to. All timestamps are in UTC. System columns (uploaded_by, upload_batch_id, *_hash, *_timestamp) are stripped from responses."
+              desc="Returns paginated records from a supported module table. All timestamps are in UTC. System columns (uploaded_by, upload_batch_id, *_hash) are stripped from the response."
               params={[
-                { name: 'table',     type: 'path param', required: true,  desc: 'DB table name (see available tables below)' },
+                { name: '[table]',   type: 'path param', required: true,  desc: 'DB table name — e.g. unauthorized_search_result, iptv_apps_internet' },
                 { name: 'page',      type: 'integer',    required: false, desc: 'Page number, default 1' },
                 { name: 'limit',     type: 'integer',    required: false, desc: 'Rows per page, default 25, max 100' },
-                { name: 'date_from', type: 'date',       required: false, desc: 'Filter from date (YYYY-MM-DD), UTC' },
-                { name: 'date_to',   type: 'date',       required: false, desc: 'Filter to date (YYYY-MM-DD), UTC' },
-                { name: 'title',     type: 'string',     required: false, desc: 'Keyword filter on title/name columns' },
+                { name: 'date_from', type: 'date',       required: false, desc: 'Filter from date (YYYY-MM-DD) on date_of_identification / identification_date' },
+                { name: 'date_to',   type: 'date',       required: false, desc: 'Filter to date (YYYY-MM-DD)' },
+                { name: 'title',     type: 'string',     required: false, desc: 'Keyword search on title / name / iptv_application_name column' },
               ]}
-              resBody={`GET /api/v1/unauthorized_search_result?page=1&limit=10&date_from=2024-01-01
+              resBody={`// GET /api/v1/unauthorized_search_result?page=1&limit=5&date_from=2024-01-01
+// Status 200
 
 {
-  "table":   "unauthorized_search_result",
-  "page":    1,
-  "limit":   10,
-  "total":   1247,
+  "table": "unauthorized_search_result",
+  "page":   1,
+  "limit":  5,
+  "total":  6144,
   "data": [
-    { "id": 1, "title": "...", "removal_status": "Removed", ... }
+    {
+      "id":                      "537cacdc-251b-11f1-bb0f-00ff85e28522",
+      "date_of_identification":  "2024-01-15T04:30:00.000Z",
+      "title":                   "SUPERFLY",
+      "copyright_owner":         "Acme Corp",
+      "linking_url":             "https://pirate.site/watch/superfly",
+      "website":                 "pirate.site",
+      "pirate_website_brand":    "PirateSite",
+      "market_scanned":          "IN",
+      "removal_status":          "Removed",
+      "removal_timestamp":       "2024-02-01T09:15:00.000Z"
+    }
   ]
-}`}
-              notes="Available tables: unauthorized_search_result, ads_tutorials_social_media, password_sharing_social_media, password_sharing_marketplace, iptv_apps_internet, iptv_apps_apps, iptv_apps_social_media, iptv_apps_marketplace, iptv_apps_meta_ads. Token usage is logged with endpoint, IP, and status code."
+}
+
+// Unauthorized — 401
+{ "error": "Unauthorized" }
+
+// Table not found — 400
+{ "error": "Table not found or not accessible" }`}
+              notes="Available tables: unauthorized_search_result, ads_tutorials_social_media, password_sharing_social_media, password_sharing_marketplace, iptv_apps_internet, iptv_apps_apps, iptv_apps_social_media, iptv_apps_marketplace, iptv_apps_meta_ads. Token usage is logged with endpoint, IP, and HTTP status code."
             />
 
             <EndpointCard
               method="GET" path="/api/v1/modules" auth="token"
               summary="List authorised modules"
-              desc="Returns the modules the authenticated user is allowed to access. Admins and superadmins receive all active modules. Regular users receive only modules where can_view = 1. Use the db_table value from the response as the [table] path parameter when calling GET /api/v1/[table]."
-              resBody={`GET /api/v1/modules
-
+              desc="Returns the list of module names the authenticated token owner is authorised to access. Use the returned names to discover which table values are valid for GET /api/v1/[table]."
+              resBody={`// Status 200
 {
   "success": true,
   "modules": [
     "Unauthorized Search Result",
     "Ads Tutorials- Social Media",
-    "IPTV & Apps - Internet"
+    "Password Sharing-Social Med.",
+    "Password Sharing-Marketplace",
+    "IPTV & Apps - Internet",
+    "IPTV & Apps - Apps",
+    "IPTV & Apps - Social Media",
+    "IPTV & Apps - Marketplace",
+    "IPTV & Apps - Marketplace",
+    "IPTV & Apps - Meta Ads"
   ]
-}`}
-              notes="Admins and superadmins receive all active module names. Regular users receive only the modules where can_view = 1 is granted."
+}
+
+// Unauthorized — 401
+{ "error": "Unauthorized" }`}
+              notes="Admins and superadmins receive all active module names. Regular users receive only modules where can_view = 1 is granted in user_module_permissions."
             />
           </div>
         )}

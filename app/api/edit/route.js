@@ -14,7 +14,7 @@ export async function GET(req) {
 
   const { searchParams } = new URL(req.url)
   const sheetName = searchParams.get('sheet')
-  const id = parseInt(searchParams.get('id'))
+  const id = searchParams.get('id')
 
   if (!sheetName || !id) return NextResponse.json({ error: 'Missing sheet or id' }, { status: 400 })
   const cfg = SHEET_CONFIG[sheetName]

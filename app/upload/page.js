@@ -387,7 +387,7 @@ function truncate(str, n = 40) {
 }
 
 function colMinWidth(col) {
-  if (col.key === 'id')                                      return '60px'
+  if (col.key === 'id')                                      return '110px'
   if (col.type === 'url')                                    return '180px'
   if (col.type === 'status')                                 return '130px'
   if (col.type === 'datetime' || col.type === 'date')        return '130px'
@@ -1135,8 +1135,11 @@ function UploadPageInner() {
                             {row[col.key] ? utcToIstDisplay(row[col.key], col.type) : '—'}
                           </span>
                         ) : col.key === 'id' ? (
-                          <span style={{ fontFamily: 'monospace', fontSize: '11px', color: 'var(--text-muted)' }}>
-                            {row[col.key] ?? '—'}
+                          <span
+                            title={row[col.key] ?? ''}
+                            style={{ fontFamily: 'monospace', fontSize: '11px', color: 'var(--text-muted)',
+                              display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }}>
+                            {row[col.key] ? row[col.key].slice(0, 8) + '…' : '—'}
                           </span>
                         ) : (
                           <span style={{ fontSize: '12px' }} title={String(row[col.key] || '')}>

@@ -1,8 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import IpHouseLoader from '@/components/IpHouseLoader'
+import { SHEET_CONFIG } from '@/lib/sheetConfig'
+
+const SHEET_NAMES = Object.keys(SHEET_CONFIG)
+const TPL_SKIP = new Set(['uploaded_by', 'upload_batch_id', 'created_at', 'updated_at', 'sr_no'])
 
 const PERM_FIELDS = [
   { key: 'can_view', label: 'View', icon: 'fa-eye' },
@@ -102,6 +106,16 @@ export default function AdminPage() {
   })
   const [testingEmail, setTestingEmail]       = useState(false)
 
+  // Template column config
+  const [tplSheet,   setTplSheet]   = useState(SHEET_NAMES[0])
+  const [tplType,    setTplType]    = useState('upload')
+  const [tplCols,    setTplCols]    = useState([])
+  const [tplLoading, setTplLoading] = useState(false)
+  const [tplSaving,  setTplSaving]  = useState(false)
+  const [tplResult,  setTplResult]  = useState(null)
+  const [tplDirty,   setTplDirty]   = useState(false)
+  const tplDragSrc = useRef(null)
+
   useEffect(() => {
     fetch('/api/auth/check').then(r => r.json()).then(d => {
       if (!d.authenticated) router.push('/login?session_expired=1')
@@ -111,11 +125,12 @@ export default function AdminPage() {
   }, [router])
 
   useEffect(() => {
-    if (tab === 'users')   fetchUsers()
-    if (tab === 'pending') fetchPendingUsers()
-    if (tab === 'api')     fetchApiTokens()
-    if (tab === 'db')      fetchDbReport()
-    if (tab === 'email')   fetchEmailConfigs()
+    if (tab === 'users')     fetchUsers()
+    if (tab === 'pending')   fetchPendingUsers()
+    if (tab === 'api')       fetchApiTokens()
+    if (tab === 'db')        fetchDbReport()
+    if (tab === 'email')     fetchEmailConfigs()
+    if (tab === 'templates') fetchTemplateConfig(tplSheet, tplType)
   }, [tab])
 
   async function fetchDbReport() {
@@ -279,6 +294,84 @@ export default function AdminPage() {
     setEmailResult(d)
     setTestingEmail(false)
   }
+
+  async function fetchTemplateConfig(sheet, type) {
+    setTplLoading(true); setTplResult(null)
+    try {
+      const res = await fetch(`/api/admin/template-config?sheet=${encodeURIComponent(sheet)}&type=${type}`)
+      const d   = await res.json()
+      const cfg = SHEET_CONFIG[sheet]
+      // Build full column list from SHEET_CONFIG (excludes system cols)
+      const baseCols = cfg.columns.filter(c =>
+        !TPL_SKIP.has(c.key) && !c.key.endsWith('_hash') &&
+        (type === 'update' || c.key !== 'id')
+      )
+      if (d.columnKeys) {
+        const savedSet = new Set(d.columnKeys)
+        const saved    = d.columnKeys.map(k => baseCols.find(c => c.key === k)).filter(Boolean).map(c => ({ ...c, included: true }))
+        const unsaved  = baseCols.filter(c => !savedSet.has(c.key)).map(c => ({ ...c, included: false }))
+        setTplCols([...saved, ...unsaved])
+      } else {
+        setTplCols(baseCols.map(c => ({ ...c, included: true })))
+      }
+      setTplDirty(false)
+    } catch (e) { setTplResult({ error: e.message }) }
+    finally { setTplLoading(false) }
+  }
+
+  async function saveTemplateConfig() {
+    const included = tplCols.filter(c => c.included).map(c => c.key)
+    if (!included.length) { setTplResult({ error: 'At least one column must be included' }); return }
+    setTplSaving(true); setTplResult(null)
+    try {
+      const res = await fetch('/api/admin/template-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sheetName: tplSheet, templateType: tplType, columnKeys: included }),
+      })
+      const d = await res.json()
+      if (d.success) { setTplResult({ success: 'Template configuration saved!' }); setTplDirty(false) }
+      else setTplResult({ error: d.error })
+    } catch (e) { setTplResult({ error: e.message }) }
+    finally { setTplSaving(false) }
+  }
+
+  async function resetTemplateConfig() {
+    setTplSaving(true); setTplResult(null)
+    try {
+      await fetch('/api/admin/template-config', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sheetName: tplSheet, templateType: tplType }),
+      })
+      await fetchTemplateConfig(tplSheet, tplType)
+      setTplResult({ success: 'Reset to default (all columns included)' })
+    } catch (e) { setTplResult({ error: e.message }) }
+    finally { setTplSaving(false) }
+  }
+
+  function tplToggle(idx) {
+    const cfg = SHEET_CONFIG[tplSheet]
+    const col = tplCols[idx]
+    // Lock: id in update, uniqueUrlCol in upload
+    if (tplType === 'update' && col.key === 'id') return
+    if (tplType === 'upload' && cfg.uniqueUrlCol && col.key === cfg.uniqueUrlCol) return
+    setTplCols(prev => prev.map((c, i) => i === idx ? { ...c, included: !c.included } : c))
+    setTplDirty(true)
+  }
+
+  function tplDragStart(idx) { tplDragSrc.current = idx }
+  function tplDragOver(e, idx) {
+    e.preventDefault()
+    if (tplDragSrc.current === null || tplDragSrc.current === idx) return
+    const next = [...tplCols]
+    const [item] = next.splice(tplDragSrc.current, 1)
+    next.splice(idx, 0, item)
+    tplDragSrc.current = idx
+    setTplCols(next)
+    setTplDirty(true)
+  }
+  function tplDragEnd() { tplDragSrc.current = null }
 
   async function fetchPermissions(userId) {
     setLoadingPerms(true); setPermResult(null)
@@ -446,6 +539,9 @@ export default function AdminPage() {
           </button>
           <button className={`tab-btn ${tab === 'db' ? 'active' : ''}`} onClick={() => setTab('db')}>
             <i className="fas fa-database" style={{ marginRight: '6px' }} />DB Optimize
+          </button>
+          <button className={`tab-btn ${tab === 'templates' ? 'active' : ''}`} onClick={() => setTab('templates')}>
+            <i className="fas fa-table-columns" style={{ marginRight: '6px' }} />Template Columns
           </button>
         </div>
 
@@ -1144,6 +1240,154 @@ export default function AdminPage() {
                 <i className="fas fa-exclamation-circle" style={{ marginRight: '6px' }} />{dbReport.error}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Template Columns Tab ── */}
+        {tab === 'templates' && (
+          <div>
+            <div className="card" style={{ marginBottom: '20px' }}>
+              <div className="card-title"><i className="fas fa-table-columns" />Template Column Manager</div>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                Choose which columns appear in the Excel template for each module and reorder them by dragging.
+                Changes apply to both the Upload Template and Bulk Update Template downloads.
+              </p>
+
+              {/* Controls row */}
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '20px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: '600', textTransform: 'uppercase' }}>Module</div>
+                  <select
+                    value={tplSheet}
+                    onChange={e => { setTplSheet(e.target.value); fetchTemplateConfig(e.target.value, tplType) }}
+                    style={{ padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '13px', minWidth: '220px' }}
+                  >
+                    {SHEET_NAMES.map(n => <option key={n} value={n}>{SHEET_CONFIG[n].label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: '600', textTransform: 'uppercase' }}>Template Type</div>
+                  <div style={{ display: 'flex', gap: '0', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                    {[['upload', 'Upload'], ['update', 'Bulk Update']].map(([val, lbl]) => (
+                      <button
+                        key={val}
+                        onClick={() => { setTplType(val); fetchTemplateConfig(tplSheet, val) }}
+                        style={{
+                          padding: '7px 16px', border: 'none', cursor: 'pointer', fontSize: '13px',
+                          background: tplType === val ? 'var(--accent)' : 'var(--bg-secondary)',
+                          color: tplType === val ? '#fff' : 'var(--text)',
+                          fontWeight: tplType === val ? '600' : '400',
+                        }}
+                      >{lbl}</button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+                  <button className="btn btn-secondary" onClick={resetTemplateConfig} disabled={tplSaving || tplLoading} title="Remove saved config — revert to all columns default">
+                    <i className="fas fa-rotate-left" />Reset Default
+                  </button>
+                  <button className="btn btn-primary" onClick={saveTemplateConfig} disabled={tplSaving || tplLoading || !tplDirty}>
+                    {tplSaving ? <><div className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px', marginRight: '6px' }} />Saving…</> : <><i className="fas fa-save" />Save Config</>}
+                  </button>
+                </div>
+              </div>
+
+              {/* Result message */}
+              {tplResult && (
+                <div style={{ marginBottom: '14px', padding: '10px 14px', borderRadius: '6px', fontSize: '13px',
+                  background: tplResult.error ? 'rgba(239,68,68,.1)' : 'rgba(34,197,94,.1)',
+                  border: `1px solid ${tplResult.error ? 'rgba(239,68,68,.3)' : 'rgba(34,197,94,.3)'}`,
+                  color: tplResult.error ? 'var(--red)' : 'var(--green)',
+                }}>
+                  <i className={`fas ${tplResult.error ? 'fa-exclamation-circle' : 'fa-check-circle'}`} style={{ marginRight: '6px' }} />
+                  {tplResult.error || tplResult.success}
+                </div>
+              )}
+
+              {/* Column list */}
+              {tplLoading ? (
+                <IpHouseLoader show size="sm" text="Loading columns…" />
+              ) : (
+                <div>
+                  {/* Legend */}
+                  <div style={{ display: 'flex', gap: '20px', marginBottom: '10px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                    <span><i className="fas fa-grip-vertical" style={{ marginRight: '4px' }} />Drag to reorder</span>
+                    <span style={{ color: 'var(--accent)' }}><i className="fas fa-lock" style={{ marginRight: '4px', fontSize: '10px' }} />Required column (cannot hide)</span>
+                    {tplDirty && <span style={{ color: 'var(--amber, #f59e0b)', fontWeight: '600' }}><i className="fas fa-circle-dot" style={{ marginRight: '4px', fontSize: '10px' }} />Unsaved changes</span>}
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {tplCols.map((col, idx) => {
+                      const cfg = SHEET_CONFIG[tplSheet]
+                      const isLocked = (tplType === 'update' && col.key === 'id') ||
+                                       (tplType === 'upload' && cfg.uniqueUrlCol && col.key === cfg.uniqueUrlCol)
+                      return (
+                        <div
+                          key={col.key}
+                          draggable
+                          onDragStart={() => tplDragStart(idx)}
+                          onDragOver={e => tplDragOver(e, idx)}
+                          onDragEnd={tplDragEnd}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '10px',
+                            padding: '8px 12px', borderRadius: '6px', cursor: 'grab',
+                            background: col.included ? 'var(--bg-secondary)' : 'var(--bg)',
+                            border: `1px solid ${col.included ? 'var(--border)' : 'var(--border2, #333)'}`,
+                            opacity: col.included ? 1 : 0.5,
+                            transition: 'opacity .15s',
+                          }}
+                        >
+                          {/* Drag handle */}
+                          <i className="fas fa-grip-vertical" style={{ color: 'var(--text-muted)', fontSize: '12px', flexShrink: 0 }} />
+
+                          {/* Position number */}
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', minWidth: '20px', textAlign: 'right', flexShrink: 0 }}>
+                            {col.included ? idx + 1 : '—'}
+                          </span>
+
+                          {/* Toggle */}
+                          {isLocked ? (
+                            <i className="fas fa-lock" style={{ color: 'var(--accent)', fontSize: '11px', flexShrink: 0 }} title="Required — cannot be hidden" />
+                          ) : (
+                            <button
+                              onClick={() => tplToggle(idx)}
+                              title={col.included ? 'Click to hide from template' : 'Click to include in template'}
+                              style={{
+                                width: '36px', height: '20px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+                                position: 'relative', flexShrink: 0,
+                                background: col.included ? 'var(--accent)' : 'var(--border2, #555)',
+                                transition: 'background .2s',
+                              }}
+                            >
+                              <span style={{
+                                position: 'absolute', top: '2px', width: '16px', height: '16px',
+                                borderRadius: '50%', background: '#fff', transition: 'left .2s',
+                                left: col.included ? '18px' : '2px',
+                              }} />
+                            </button>
+                          )}
+
+                          {/* Column info */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ fontWeight: '600', fontSize: '13px' }}>{col.label}</span>
+                            <span style={{ marginLeft: '8px', fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{col.key}</span>
+                            {col.type && <span style={{ marginLeft: '6px', fontSize: '10px', color: 'var(--text-muted)', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '3px', padding: '1px 5px' }}>{col.type}</span>}
+                          </div>
+
+                          {isLocked && (
+                            <span style={{ fontSize: '11px', color: 'var(--accent)', flexShrink: 0 }}>Required</span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                    {tplCols.filter(c => c.included).length} of {tplCols.length} columns included in template
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

@@ -29,11 +29,10 @@ export async function GET(req) {
     .map(c => c.key)
     .slice(0, 2)
 
-  const idVal = parseInt(search)
   const likeParam = `%${search}%`
 
   let whereClause = `id = ?`
-  const params = [isNaN(idVal) ? 0 : idVal]
+  const params = [search]
 
   if (urlCol) {
     whereClause += ` OR \`${urlCol}\` LIKE ?`
