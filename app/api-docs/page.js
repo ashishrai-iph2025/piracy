@@ -39,7 +39,7 @@ function AuthBadge({ level }) {
   )
 }
 
-function Code({ children, lang = 'json' }) {
+function Code({ children }) {
   const [copied, setCopied] = useState(false)
   function copy() {
     navigator.clipboard.writeText(children).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
@@ -1184,41 +1184,424 @@ export default function ApiDocsPage() {
               params={[
                 { name: '[table]',   type: 'path param', required: true,  desc: 'DB table name — e.g. unauthorized_search_result, iptv_apps_internet' },
                 { name: 'page',      type: 'integer',    required: false, desc: 'Page number, default 1' },
-                { name: 'limit',     type: 'integer',    required: false, desc: 'Rows per page, default 25, max 100' },
-                { name: 'date_from', type: 'date',       required: false, desc: 'Filter from date (YYYY-MM-DD) on date_of_identification / identification_date' },
+                { name: 'limit',     type: 'integer',    required: false, desc: 'Rows per page, default 25, max 1000' },
+                { name: 'date_from', type: 'date',       required: false, desc: 'Filter from date (YYYY-MM-DD) — uses date_of_identification for non-IPTV, identification_date for IPTV modules' },
                 { name: 'date_to',   type: 'date',       required: false, desc: 'Filter to date (YYYY-MM-DD)' },
-                { name: 'title',     type: 'string',     required: false, desc: 'Keyword search on title / name / iptv_application_name column' },
+                { name: 'title',     type: 'string',     required: false, desc: 'Keyword search on title/name/iptv_application_name/pirate_brand columns (varies by module)' },
               ]}
-              resBody={`// GET /api/v1/unauthorized_search_result?page=1&limit=5&date_from=2024-01-01
-// Status 200
-
+              resBody={`// ════════════════════════════════════════════════════════════════════════
+// UNAUTHORIZED SEARCH RESULT  —  GET /api/v1/unauthorized_search_result
+// ════════════════════════════════════════════════════════════════════════
 {
-  "table": "unauthorized_search_result",
-  "page":   1,
-  "limit":  5,
-  "total":  6144,
-  "data": [
-    {
-      "id":                      "537cacdc-251b-11f1-bb0f-00ff85e28522",
-      "date_of_identification":  "2024-01-15T04:30:00.000Z",
-      "title":                   "SUPERFLY",
-      "copyright_owner":         "Acme Corp",
-      "linking_url":             "https://pirate.site/watch/superfly",
-      "website":                 "pirate.site",
-      "pirate_website_brand":    "PirateSite",
-      "market_scanned":          "IN",
-      "removal_status":          "Removed",
-      "removal_timestamp":       "2024-02-01T09:15:00.000Z"
-    }
-  ]
+  "success": true,
+  "table":   "unauthorized_search_result",
+  "total":   6144,
+  "page":    1,
+  "pages":   246,
+  "limit":   25,
+  "filters": { "date_from": null, "date_to": null, "title": null },
+  "data": [{
+    "id":                         "539e56ba-251b-11f1-bb0f-00ff85e28522",
+    "date_of_identification":     "2026-03-08T03:36:49.000Z",
+    "title":                      "THE AMAZING SPIDER-MAN",
+    "copyright_owner":            "Sony Pictures Entertainment Inc.",
+    "linking_url":                "https://bflix.la/watch/movie-the-amazing-spider-man",
+    "website":                    "bflix.la",
+    "pirate_website_brand":       "Bflix",
+    "sw_data_month":              null,
+    "sw_monthly_traffic":         3235000,
+    "traffic_from_search_engines":null,
+    "sw_global_rank":             18810,
+    "sw_popular_country":         null,
+    "sw_country_rank":            null,
+    "market_scanned":             "USA",
+    "search_engine":              "Website",
+    "keyword":                    "THE AMAZING SPIDER-MAN",
+    "page_no":                    null,
+    "url_rank":                   null,
+    "language_1":                 "English",
+    "language_2":                 null,
+    "language_3":                 null,
+    "linking_html_tag":           null,
+    "notice_id_google":           "1357E0C9-2A52-41BB-A6C3-DA4248673B6C",
+    "notice_sent_date_google":    null,
+    "urls_delisting_date_google": null,
+    "url_status_google":          "Approved",
+    "notice_id_bing":             "b1357E0C9-2A52-41BB-A6C3-DA4248673B6C",
+    "notice_sent_date_bing":      null,
+    "urls_delisting_date_bing":   null,
+    "url_status_bing":            "Approved",
+    "notice_id_yandex":           "y1357E0C9-2A52-41BB-A6C3-DA4248673B6C",
+    "notice_sent_date_yandex":    null,
+    "urls_delisting_date_yandex": null,
+    "url_status_yandex":          "Approved",
+    "tat_google":                 null,
+    "removal_status":             null,
+    "removal_timestamp":          null
+  }]
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ADS TUTORIALS - SOCIAL MEDIA  —  GET /api/v1/ads_tutorials_social_media
+// ════════════════════════════════════════════════════════════════════════
+{
+  "success": true,
+  "table":   "ads_tutorials_social_media",
+  "total":   312,
+  "page":    1,
+  "pages":   13,
+  "limit":   25,
+  "filters": { "date_from": null, "date_to": null, "title": null },
+  "data": [{
+    "id":                         "a1b2c3d4-251b-11f1-bb0f-00ff85e28522",
+    "date_of_identification":     "2026-03-10T06:00:00.000Z",
+    "platform_name":              "YouTube",
+    "platform_domain":            "youtube.com",
+    "content_owner":              "Sports Corp",
+    "pirate_domain":              "streampirate.cc",
+    "pirate_brand":               "StreamPirate",
+    "video_posts_urls":           "https://youtube.com/watch?v=abc123",
+    "channel_profile_page_urls":  "https://youtube.com/c/piratestream",
+    "channel_page_profile_name":  "Pirate Stream Channel",
+    "subscribers":                45200,
+    "views":                      128000,
+    "post_description":           "Watch full movies free",
+    "language_of_post":           "English",
+    "type_of_post":               "Video",
+    "linking_url":                "https://streampirate.cc/movies",
+    "keywords":                   "free movies streaming",
+    "market_scanned":             "IN",
+    "url_status":                 "Removed",
+    "notice_id":                  "NT-2026-001",
+    "notice_sent_date":           "2026-03-15T06:00:00.000Z",
+    "url_removal_date":           "2026-03-20T10:00:00.000Z",
+    "tat":                        "10 days"
+  }]
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// PASSWORD SHARING - SOCIAL MEDIA  —  GET /api/v1/password_sharing_social_media
+// ════════════════════════════════════════════════════════════════════════
+{
+  "success": true,
+  "table":   "password_sharing_social_media",
+  "total":   180,
+  "page":    1,
+  "pages":   8,
+  "limit":   25,
+  "filters": { "date_from": null, "date_to": null, "title": null },
+  "data": [{
+    "id":                         "b1c2d3e4-251b-11f1-bb0f-00ff85e28522",
+    "date_of_identification":     "2026-04-01T05:30:00.000Z",
+    "platform_name":              "Telegram",
+    "platform_domain_name":       "telegram.org",
+    "content_owner":              "Sports Corp",
+    "listing_posts_urls":         "https://t.me/pirateshare/12345",
+    "channel_profile_page_urls":  "https://t.me/pirateshare",
+    "channel_page_profile_name":  "PirateShare Group",
+    "subscribers":                8900,
+    "views":                      null,
+    "post_description":           "Sharing OTT credentials",
+    "language_of_post":           "English",
+    "type_of_post":               "Post",
+    "linking_url":                null,
+    "credentials_available":      "Yes",
+    "login_id":                   "user@email.com",
+    "login_password":             "pass1234",
+    "login_validation_status":    "Valid",
+    "seller_name":                "SharerBot",
+    "seller_country":             "IN",
+    "listing_price":              null,
+    "listing_currency":           null,
+    "offers_discount":            null,
+    "keywords":                   "OTT password share",
+    "market_scanned":             "IN",
+    "notes":                      null,
+    "url_status":                 "Pending",
+    "notice_id":                  null,
+    "notice_sent_date":           null,
+    "removal_date":               null,
+    "tat":                        null
+  }]
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// PASSWORD SHARING - MARKETPLACE  —  GET /api/v1/password_sharing_marketplace
+// ════════════════════════════════════════════════════════════════════════
+{
+  "success": true,
+  "table":   "password_sharing_marketplace",
+  "total":   95,
+  "page":    1,
+  "pages":   4,
+  "limit":   25,
+  "filters": { "date_from": null, "date_to": null, "title": null },
+  "data": [{
+    "id":                         "c1d2e3f4-251b-11f1-bb0f-00ff85e28522",
+    "date_of_identification":     "2026-05-10T06:00:00.000Z",
+    "platform_name":              "eBay",
+    "platform_domain_name":       "ebay.com",
+    "market_scanned":             "USA",
+    "content_owner":              "Sports Corp",
+    "listing_url":                "https://ebay.com/itm/12345678",
+    "login_id":                   "buyer@email.com",
+    "login_password":             "pass5678",
+    "login_validation_status":    "Valid",
+    "listing_title":              "HD Sports Streaming 12 months",
+    "seller_name":                "FastSeller99",
+    "shop_url":                   "https://ebay.com/usr/fastseller99",
+    "seller_country":             "US",
+    "listing_price":              9.99,
+    "listing_currency":           "USD",
+    "offers_discount":            "10% off",
+    "validity":                   "12 months",
+    "type_of_listing":            "Buy It Now",
+    "keywords":                   "sports streaming 12 month",
+    "no_of_reviews":              142,
+    "ratings":                    4.8,
+    "no_of_buys":                 89,
+    "notes":                      null,
+    "url_status":                 "Removed",
+    "notice_id":                  "NT-MKT-2026-005",
+    "notice_sent_date":           "2026-05-15T06:00:00.000Z",
+    "removal_date":               "2026-05-20T10:00:00.000Z",
+    "tat":                        "5 days"
+  }]
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// IPTV & APPS - INTERNET  —  GET /api/v1/iptv_apps_internet
+// ════════════════════════════════════════════════════════════════════════
+{
+  "success": true,
+  "table":   "iptv_apps_internet",
+  "total":   2480,
+  "page":    1,
+  "pages":   100,
+  "limit":   25,
+  "filters": { "date_from": null, "date_to": null, "title": null },
+  "data": [{
+    "id":                           "d1e2f3a4-251b-11f1-bb0f-00ff85e28522",
+    "identification_date":          "2026-06-01T05:30:00.000Z",
+    "week_bise":                    "W22-2026",
+    "type":                         "IPTV",
+    "iptv_application_name":        "StreamBox Pro",
+    "source_url":                   "https://streambox.cc/download",
+    "source_domain":                "streambox.cc",
+    "keywords":                     "iptv streaming box",
+    "search_engine":                "Google",
+    "page_no":                      1,
+    "page_rank":                    3,
+    "market_country":               "IN",
+    "content_owner":                "Sports Corp",
+    "trademark_wordmark":           "Sports Corp",
+    "category":                     "Sports+Content",
+    "sw_data_month":                "2026-05",
+    "search_traffic":               12000,
+    "sw_monthly_traffic":           850000,
+    "unique_monthly_visits":        620000,
+    "sw_global_rank":               8420,
+    "sw_popular_country":           "IN",
+    "sw_country_rank":              1240,
+    "approved_for_enforcement":     "Y",
+    "disruption_status":            "Active",
+    "url_delisting_status_google":  "Approved",
+    "notice_sent_date_google":      "2026-06-05T06:00:00.000Z",
+    "notice_id_google":             "LU-1357E0C9-GOOG",
+    "tcrp_case_id":                 "TCRP-2026-001",
+    "delisting_timestamp_google":   "2026-06-10T10:00:00.000Z",
+    "tat_google":                   "9 days",
+    "url_delisting_status_bing":    "Pending",
+    "notice_sent_date_bing":        null,
+    "notice_id_bing":               null,
+    "tcrp_case_id_bing":            null,
+    "delisting_timestamp_bing":     null,
+    "tat_bing":                     null,
+    "url_delisting_status_yandex":  null,
+    "notice_sent_date_yandex":      null,
+    "notice_id_yandex":             null,
+    "tcrp_case_id_yandex":          null,
+    "delisting_timestamp_yandex":   null,
+    "tat_yandex":                   null
+  }]
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// IPTV & APPS - APPS  —  GET /api/v1/iptv_apps_apps
+// ════════════════════════════════════════════════════════════════════════
+{
+  "success": true,
+  "table":   "iptv_apps_apps",
+  "total":   750,
+  "page":    1,
+  "pages":   30,
+  "limit":   25,
+  "filters": { "date_from": null, "date_to": null, "title": null },
+  "data": [{
+    "id":                       "e1f2a3b4-251b-11f1-bb0f-00ff85e28522",
+    "identification_date":      "2026-07-01T05:30:00.000Z",
+    "week_bise":                "W27-2026",
+    "type":                     "App",
+    "platform":                 "Android",
+    "iptv_application_name":    "PirateTV App",
+    "source_url":               "https://apkpure.com/pirate-tv/com.piratv",
+    "source_domain":            "apkpure.com",
+    "platforms":                "Android",
+    "keywords":                 "iptv apk free download",
+    "apps_version":             "v3.2.1",
+    "developer_name":           "UnknownDev",
+    "developer_id":             "dev.unknown.piratv",
+    "developer_website_email":  "dev@unknown.io",
+    "market":                   "IN",
+    "content_owner":            "Sports Corp",
+    "trademark_wordmark":       "Sports Corp",
+    "category":                 "Sports",
+    "subscription_paid_free":   "Free",
+    "subscription_cost":        null,
+    "subscription_currency":    null,
+    "validity":                 null,
+    "approved_for_enforcement": "Y",
+    "disruption_status":        "Removed",
+    "first_notice_date":        "2026-07-05T06:00:00.000Z",
+    "notice_id":                "NT-APP-2026-010",
+    "date_of_last_followup":    "2026-07-12",
+    "no_of_times_followup":     2,
+    "removal_timestamp":        "2026-07-15T08:00:00.000Z",
+    "tat":                      "14 days"
+  }]
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// IPTV & APPS - SOCIAL MEDIA  —  GET /api/v1/iptv_apps_social_media
+// ════════════════════════════════════════════════════════════════════════
+{
+  "success": true,
+  "table":   "iptv_apps_social_media",
+  "total":   430,
+  "page":    1,
+  "pages":   18,
+  "limit":   25,
+  "filters": { "date_from": null, "date_to": null, "title": null },
+  "data": [{
+    "id":                        "f1a2b3c4-251b-11f1-bb0f-00ff85e28522",
+    "identification_date":       "2026-08-01T05:30:00.000Z",
+    "week_bise":                 "W31-2026",
+    "type":                      "Social Media",
+    "iptv_application_name":     "IPTV Share Group",
+    "source_url":                "https://t.me/iptvshare/89",
+    "channel_profile_page_urls": "https://t.me/iptvshare",
+    "source_domain":             "t.me",
+    "infringement_type":         "Live Sports Stream",
+    "channel_page_profile_name": "IPTV Share",
+    "copyright_owner":           "Sports Corp",
+    "trademark_wordmark":        "Sports Corp",
+    "category":                  "Sports",
+    "subscriber_follower":       23400,
+    "views_likes":               "5K",
+    "keywords":                  "iptv telegram free",
+    "market_country":            "IN",
+    "approved_for_enforcement":  "Y",
+    "disruption_status":         "Active",
+    "date_time_first_notice":    null,
+    "notice_id":                 null,
+    "date_of_last_followup":     null,
+    "no_of_times_followup":      0,
+    "removal_timestamp":         null,
+    "tat":                       null
+  }]
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// IPTV & APPS - MARKETPLACE  —  GET /api/v1/iptv_apps_marketplace
+// ════════════════════════════════════════════════════════════════════════
+{
+  "success": true,
+  "table":   "iptv_apps_marketplace",
+  "total":   210,
+  "page":    1,
+  "pages":   9,
+  "limit":   25,
+  "filters": { "date_from": null, "date_to": null, "title": null },
+  "data": [{
+    "id":                        "a2b3c4d5-251b-11f1-bb0f-00ff85e28522",
+    "identification_date":       "2026-09-01T05:30:00.000Z",
+    "week_bise":                 "W36-2026",
+    "type":                      "Marketplace",
+    "iptv_application_name":     "SuperIPTV",
+    "intermediary_type":         "E-Commerce",
+    "source_url":                "https://amazon.in/dp/B0001IPTV",
+    "source_domain":             "amazon.in",
+    "platform":                  "Amazon",
+    "seller_profile_page_url":   "https://amazon.in/s?me=SELLER123",
+    "copyright_owner":           "Sports Corp",
+    "trademark_wordmark":        "Sports Corp",
+    "category":                  "Content",
+    "device_name":               "Android Box",
+    "keywords":                  "iptv subscription amazon",
+    "market_country":            "IN",
+    "subscription_cost":         499,
+    "subscription_currency":     "INR",
+    "seller_name_company":       "FastSeller Ltd",
+    "seller_country":            "IN",
+    "number_of_buys":            320,
+    "approved_for_enforcement":  "Y",
+    "disruption_status":         "Removed",
+    "date_time_first_notice":    "2026-09-05T06:00:00.000Z",
+    "notice_id":                 "NT-MKT-IPTV-2026-020",
+    "date_of_last_followup":     "2026-09-08",
+    "no_of_times_followup":      1,
+    "removal_timestamp":         "2026-09-10T08:00:00.000Z",
+    "tat":                       "9 days"
+  }]
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// IPTV & APPS - META ADS  —  GET /api/v1/iptv_apps_meta_ads
+// ════════════════════════════════════════════════════════════════════════
+{
+  "success": true,
+  "table":   "iptv_apps_meta_ads",
+  "total":   115,
+  "page":    1,
+  "pages":   5,
+  "limit":   25,
+  "filters": { "date_from": null, "date_to": null, "title": null },
+  "data": [{
+    "id":                        "b3c4d5e6-251b-11f1-bb0f-00ff85e28522",
+    "identification_date":       "2026-10-01T05:30:00.000Z",
+    "week_bise":                 "W40-2026",
+    "type":                      "Meta Ads",
+    "iptv_application_name":     "IPTV Promo Ad",
+    "intermediary_type":         "Meta Ads",
+    "source_url":                "https://facebook.com/ads/library/?id=12345678",
+    "advertiser_channel_url":    "https://facebook.com/pirateiptv",
+    "platform":                  "Facebook",
+    "library_id":                "12345678",
+    "copyright_owner":           "Sports Corp",
+    "trademark_wordmark":        "Sports Corp",
+    "category":                  "Sports",
+    "keywords":                  "iptv subscription cheapest",
+    "market_country":            "IN",
+    "followers_subscribers":     18700,
+    "listing_date":              "2026-09-25",
+    "seller_name":               "AdSeller Co",
+    "approved_for_enforcement":  "Y",
+    "disruption_status":         "Removed",
+    "date_time_first_notice":    "2026-10-03T06:00:00.000Z",
+    "notice_id":                 "NT-META-2026-008",
+    "date_of_last_followup":     "2026-10-06",
+    "no_of_times_followup":      1,
+    "removal_timestamp":         "2026-10-08T09:00:00.000Z",
+    "tat":                       "7 days"
+  }]
 }
 
 // Unauthorized — 401
-{ "error": "Unauthorized" }
+{ "error": "Unauthorized — provide a valid Bearer token via Authorization header" }
 
-// Table not found — 400
-{ "error": "Table not found or not accessible" }`}
-              notes="Available tables: unauthorized_search_result, ads_tutorials_social_media, password_sharing_social_media, password_sharing_marketplace, iptv_apps_internet, iptv_apps_apps, iptv_apps_social_media, iptv_apps_marketplace, iptv_apps_meta_ads. Token usage is logged with endpoint, IP, and HTTP status code."
+// Unknown table — 404
+{ "error": "Unknown table: \\"invalid_table\\"" }`}
+              notes="Non-IPTV modules (unauthorized_search_result, ads_tutorials_social_media, password_sharing_*) use date_of_identification as the date filter column and url_status for removal tracking. IPTV modules (iptv_apps_*) use identification_date, disruption_status, and removal_timestamp. System columns (uploaded_by, upload_batch_id, sr_no, *_hash) are stripped. All timestamps are UTC."
             />
 
             <EndpointCard

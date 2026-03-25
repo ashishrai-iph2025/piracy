@@ -1,22 +1,28 @@
 import { NextResponse } from 'next/server'
 import { query } from '@/lib/db'
+import { SHEET_CONFIG } from '@/lib/sheetConfig'
+
+// Build reverse map: db table name -> sheetConfig entry
+const TABLE_TO_SHEET = Object.fromEntries(
+  Object.values(SHEET_CONFIG).map(v => [v.table, v])
+)
 
 // Allowed tables + which column to use for date/title filtering
 const TABLE_CONFIG = {
   unauthorized_search_result:    { dateCol: 'date_of_identification', titleCols: ['title', 'keyword', 'website', 'pirate_website_brand'] },
-  ads_tutorials_social_media:    { dateCol: 'date_of_identification', titleCols: ['title', 'channel_page_profile_name', 'pirate_brand', 'platform_name'] },
+  ads_tutorials_social_media:    { dateCol: 'date_of_identification', titleCols: ['channel_page_profile_name', 'pirate_brand', 'platform_name'] },
   password_sharing_social_media: { dateCol: 'date_of_identification', titleCols: ['channel_page_profile_name', 'seller_name', 'platform_name'] },
   password_sharing_marketplace:  { dateCol: 'date_of_identification', titleCols: ['listing_title', 'seller_name', 'platform_name'] },
   iptv_apps_internet:            { dateCol: 'identification_date',    titleCols: ['iptv_application_name', 'source_domain', 'content_owner'] },
   iptv_apps_apps:                { dateCol: 'identification_date',    titleCols: ['iptv_application_name', 'developer_name', 'platform'] },
   iptv_apps_social_media:        { dateCol: 'identification_date',    titleCols: ['iptv_application_name', 'channel_page_profile_name', 'copyright_owner'] },
-  iptv_apps_marketplace:         { dateCol: 'identification_date',    titleCols: ['iptv_application_name', 'post_title', 'copyright_owner'] },
-  iptv_apps_meta_ads:            { dateCol: 'identification_date',    titleCols: ['iptv_application_name', 'post_title', 'copyright_owner'] },
+  iptv_apps_marketplace:         { dateCol: 'identification_date',    titleCols: ['iptv_application_name', 'seller_name_company', 'copyright_owner'] },
+  iptv_apps_meta_ads:            { dateCol: 'identification_date',    titleCols: ['iptv_application_name', 'seller_name', 'copyright_owner'] },
 }
 
 // System columns stripped from API responses
-const STRIP_COLS = new Set(['uploaded_by', 'upload_batch_id'])
-const STRIP_SUFFIX = ['_hash', '_timestamp']
+const STRIP_COLS = new Set(['uploaded_by', 'upload_batch_id', 'sr_no', 'created_at', 'updated_at'])
+const STRIP_SUFFIX = ['_hash']
 
 async function validateToken(req) {
   const auth  = req.headers.get('authorization') || ''
@@ -98,6 +104,12 @@ export async function GET(req, { params }) {
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
 
+  // Build SELECT clause from sheetConfig (include id + all config columns)
+  const sheetEntry = TABLE_TO_SHEET[tableName]
+  const selectClause = sheetEntry
+    ? ['`id`', ...sheetEntry.columns.filter(c => c.key !== 'id').map(c => `\`${c.key}\``)].join(', ')
+    : '*'
+
   try {
     const [{ total }] = await query(
       `SELECT COUNT(*) AS total FROM \`${tableName}\` ${where}`,
@@ -105,7 +117,7 @@ export async function GET(req, { params }) {
     )
 
     const rows = await query(
-      `SELECT * FROM \`${tableName}\` ${where}
+      `SELECT ${selectClause} FROM \`${tableName}\` ${where}
        ORDER BY created_at DESC LIMIT ? OFFSET ?`,
       [...values, limit, offset]
     )

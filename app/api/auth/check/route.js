@@ -21,9 +21,9 @@ export async function GET() {
       role = rows[0].role
     } catch {}
 
-    // Get viewable modules (null = all for admin/superadmin)
+    // Get viewable modules (null = all for superadmin only; admin and user must have explicit grants)
     let viewableModules = null
-    if (role !== 'admin' && role !== 'superadmin') {
+    if (role !== 'superadmin') {
       try {
         const modRows = await query(
           `SELECT m.name FROM user_module_permissions p

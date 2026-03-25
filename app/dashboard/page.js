@@ -616,7 +616,7 @@ export default function DashboardPage() {
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontSize:'12px', fontWeight:'700', color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{mod.label}</div>
                       <div style={{ fontSize:'10px', color:'var(--text-muted)', marginTop:'1px' }}>
-                        {Number(mod.total).toLocaleString()} identified
+                        {Number(mod.total).toLocaleString()} Identified
                       </div>
                     </div>
                     <Link href={`/upload?sheet=${encodeURIComponent(mod.key)}`} style={{
@@ -632,7 +632,7 @@ export default function DashboardPage() {
                       <div style={{ fontSize:'18px', fontWeight:'800', color:'var(--text-primary)', lineHeight:1 }}>{Number(mod.total).toLocaleString()}</div>
                     </div>
                     <div style={{ padding:'10px 16px' }}>
-                      <div style={{ fontSize:'10px', color:'#22c55e', fontWeight:'600', marginBottom:'2px' }}>Removal</div>
+                      <div style={{ fontSize:'10px', color:'#22c55e', fontWeight:'600', marginBottom:'2px' }}>Delisting</div>
                       <div style={{ fontSize:'18px', fontWeight:'800', color:'#22c55e', lineHeight:1 }}>{Number(mod.actioned).toLocaleString()}</div>
                     </div>
                   </div>

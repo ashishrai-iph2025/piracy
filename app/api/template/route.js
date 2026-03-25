@@ -13,6 +13,28 @@ function toHeader(col) {
   return col.split('_').map(w => overrides[w] || (w.charAt(0).toUpperCase() + w.slice(1))).join(' ')
 }
 
+// Build db_column_key -> excel header label map from sheetConfig
+function buildSheetHeaderMap(sheetName) {
+  const cfg = SHEET_CONFIG[sheetName]
+  if (!cfg) return {}
+  const map = {}
+  for (const col of cfg.columns) {
+    if (col.excel) map[col.key] = col.excel
+    else if (col.label) map[col.key] = col.label
+  }
+  return map
+}
+
+// Return only sheetConfig-defined columns in sheetConfig order (excludes extra DB-only cols)
+function applySheetConfigOrder(uploadCols, sheetName) {
+  const cfg = SHEET_CONFIG[sheetName]
+  if (!cfg || !cfg.columns.length) return uploadCols
+  const dbColMap = Object.fromEntries(uploadCols.map(c => [c.Field, c]))
+  return cfg.columns
+    .filter(c => c.key !== 'id' && dbColMap[c.key])
+    .map(c => dbColMap[c.key])
+}
+
 function getHint(col, mysqlType) {
   const t = mysqlType.toLowerCase()
   if (col === 'id' || col.endsWith('_id')) return 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (UUID)'
@@ -65,15 +87,18 @@ export async function GET(req) {
   const wb = XLSX.utils.book_new()
 
   // ── Main data sheet ────────────────────────────────────────────────────────
+  // All non-system, non-id DB columns (used as the pool to draw from)
+  const allDataCols = dbCols.filter(c => c.Field !== 'id' && !SKIP_COLS.has(c.Field) && !SKIP_SUFFIX.some(s => c.Field.endsWith(s)))
+
   let uploadCols
   if (type === 'update') {
-    // Bulk UPDATE template: include id first, then all updatable columns
+    // Bulk UPDATE template: id first, then sheetConfig-ordered data columns
     const idCol = dbCols.find(c => c.Field === 'id')
-    const rest  = dbCols.filter(c => c.Field !== 'id' && !SKIP_COLS.has(c.Field) && !SKIP_SUFFIX.some(s => c.Field.endsWith(s)))
-    uploadCols = idCol ? [idCol, ...rest] : rest
+    const rest  = applySheetConfigOrder(allDataCols, sheetName)
+    uploadCols  = idCol ? [idCol, ...rest] : rest
   } else {
-    // Bulk INSERT template: exclude id and system cols
-    uploadCols = dbCols.filter(c => c.Field !== 'id' && !SKIP_COLS.has(c.Field) && !SKIP_SUFFIX.some(s => c.Field.endsWith(s)))
+    // Bulk INSERT template: sheetConfig-ordered columns only, no id
+    uploadCols = applySheetConfigOrder(allDataCols, sheetName)
   }
 
   // ── Apply saved template column config (order + visibility) ────────────────
@@ -96,7 +121,9 @@ export async function GET(req) {
     }
   } catch (_) { /* if table missing, fall back to default */ }
 
-  const headers = uploadCols.map(c => toHeader(c.Field))
+  // Use sheetConfig excel labels where defined; fall back to auto-generated header
+  const sheetHeaderMap = buildSheetHeaderMap(sheetName)
+  const headers = uploadCols.map(c => sheetHeaderMap[c.Field] || toHeader(c.Field))
   const hints   = uploadCols.map(c => getHint(c.Field, c.Type))
 
   // Sample row for update template to illustrate id usage

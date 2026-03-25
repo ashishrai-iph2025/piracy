@@ -8,6 +8,15 @@ import { SHEET_CONFIG } from '@/lib/sheetConfig'
 const SHEET_NAMES = Object.keys(SHEET_CONFIG)
 const TPL_SKIP = new Set(['uploaded_by', 'upload_batch_id', 'created_at', 'updated_at', 'sr_no'])
 
+const ADMIN_TABS = [
+  { key: 'users',     label: 'Users' },
+  { key: 'pending',   label: 'Pending Approvals' },
+  { key: 'email',     label: 'Email Config' },
+  { key: 'api',       label: 'API Playground' },
+  { key: 'db',        label: 'DB Optimize' },
+  { key: 'templates', label: 'Template Columns' },
+]
+
 const PERM_FIELDS = [
   { key: 'can_view', label: 'View', icon: 'fa-eye' },
   { key: 'can_upload', label: 'Upload', icon: 'fa-upload' },
@@ -35,7 +44,10 @@ export default function AdminPage() {
   const router = useRouter()
   const [userName, setUserName] = useState('')
   const [userRole, setUserRole] = useState('user')
+  const [userId,   setUserId]   = useState('')
   const [tab, setTab] = useState('users')
+  // panelPerms: null = full admin access; string[] = only these tabs accessible
+  const [panelPerms, setPanelPerms] = useState(null)
 
   // API Playground state
   const [apiTokens, setApiTokens]         = useState([])
@@ -55,6 +67,7 @@ export default function AdminPage() {
   const [playLoading,  setPlayLoading]    = useState(false)
   const [playRespTime, setPlayRespTime]   = useState(null)
   const [copiedToken,  setCopiedToken]    = useState(false)
+  const [playView,     setPlayView]       = useState('raw') // 'raw' | 'table'
 
   // Users
   const [users, setUsers] = useState([])
@@ -116,11 +129,33 @@ export default function AdminPage() {
   const [tplDirty,   setTplDirty]   = useState(false)
   const tplDragSrc = useRef(null)
 
+  // Custom columns (Add Column form in Template Columns tab)
+  const [customCols,   setCustomCols]   = useState([])
+  const [newColForm,   setNewColForm]   = useState({ key: '', label: '', type: 'VARCHAR(512)' })
+  const [addingCol,    setAddingCol]    = useState(false)
+  const [addColResult, setAddColResult] = useState(null)
+
+  // Panel permissions for a selected user (in Permissions tab)
+  const [userPanelPerms,     setUserPanelPerms]     = useState([])
+  const [loadingPanelPerms,  setLoadingPanelPerms]  = useState(false)
+
   useEffect(() => {
     fetch('/api/auth/check').then(r => r.json()).then(d => {
-      if (!d.authenticated) router.push('/login?session_expired=1')
-      else if (d.role !== 'superadmin' && d.role !== 'admin') router.push('/upload')
-      else { setUserName(d.userName); setUserRole(d.role) }
+      if (!d.authenticated) { router.push('/login?session_expired=1'); return }
+      const isSuperAdmin = d.role === 'superadmin'
+      setUserName(d.userName)
+      setUserRole(d.role)
+      setUserId(d.userId)
+      if (!isSuperAdmin) {
+        // admin and user roles both require explicit panel tab grants from superadmin
+        fetch('/api/admin/panel-permissions?mine=1').then(r => r.json()).then(pd => {
+          const accessible = (pd.permissions || []).filter(p => p.can_access).map(p => p.tab_key)
+          if (!accessible.length) { router.push('/upload'); return }
+          setPanelPerms(accessible)
+          setTab(accessible[0])
+          setPlayUser(d.userName) // locked to own credentials for non-superadmin
+        }).catch(() => router.push('/upload'))
+      }
     })
   }, [router])
 
@@ -298,25 +333,62 @@ export default function AdminPage() {
   async function fetchTemplateConfig(sheet, type) {
     setTplLoading(true); setTplResult(null)
     try {
-      const res = await fetch(`/api/admin/template-config?sheet=${encodeURIComponent(sheet)}&type=${type}`)
-      const d   = await res.json()
+      const [res, customRes] = await Promise.all([
+        fetch(`/api/admin/template-config?sheet=${encodeURIComponent(sheet)}&type=${type}`),
+        fetch(`/api/admin/custom-columns?sheet=${encodeURIComponent(sheet)}`),
+      ])
+      const d          = await res.json()
+      const customData = await customRes.json()
       const cfg = SHEET_CONFIG[sheet]
+
       // Build full column list from SHEET_CONFIG (excludes system cols)
       const baseCols = cfg.columns.filter(c =>
         !TPL_SKIP.has(c.key) && !c.key.endsWith('_hash') &&
         (type === 'update' || c.key !== 'id')
       )
+      // Merge in custom columns
+      const customColumns = (customData.columns || []).map(c => ({
+        key: c.column_key, label: c.column_label, type: c.column_type, isCustom: true,
+      }))
+      const allCols = [...baseCols, ...customColumns]
+
       if (d.columnKeys) {
         const savedSet = new Set(d.columnKeys)
-        const saved    = d.columnKeys.map(k => baseCols.find(c => c.key === k)).filter(Boolean).map(c => ({ ...c, included: true }))
-        const unsaved  = baseCols.filter(c => !savedSet.has(c.key)).map(c => ({ ...c, included: false }))
+        const saved    = d.columnKeys.map(k => allCols.find(c => c.key === k)).filter(Boolean).map(c => ({ ...c, included: true }))
+        const unsaved  = allCols.filter(c => !savedSet.has(c.key)).map(c => ({ ...c, included: false }))
         setTplCols([...saved, ...unsaved])
       } else {
-        setTplCols(baseCols.map(c => ({ ...c, included: true })))
+        setTplCols(allCols.map(c => ({ ...c, included: true })))
       }
+      setCustomCols(customData.columns || [])
       setTplDirty(false)
     } catch (e) { setTplResult({ error: e.message }) }
     finally { setTplLoading(false) }
+  }
+
+  async function addCustomColumn(e) {
+    e.preventDefault()
+    if (!newColForm.key || !newColForm.label) return
+    setAddingCol(true); setAddColResult(null)
+    try {
+      const res = await fetch('/api/admin/custom-columns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sheet_name: tplSheet, ...newColForm }),
+      })
+      const d = await res.json()
+      if (d.success) {
+        const msg = d.dbStatus === 'created'
+          ? `Column "${newColForm.label}" created in database and registered.`
+          : `Column "${newColForm.label}" registered (column already existed in database).`
+        setAddColResult({ success: msg })
+        setNewColForm({ key: '', label: '', type: 'VARCHAR(512)' })
+        fetchTemplateConfig(tplSheet, tplType)
+      } else {
+        setAddColResult({ error: d.error })
+      }
+    } catch (err) { setAddColResult({ error: err.message }) }
+    finally { setAddingCol(false) }
   }
 
   async function saveTemplateConfig() {
@@ -377,9 +449,15 @@ export default function AdminPage() {
     setLoadingPerms(true); setPermResult(null)
     try {
       const res = await fetch(`/api/admin/permissions?user_id=${userId}`)
-      const d = await res.json()
+      const d   = await res.json()
       setPermissions(d.permissions || [])
-    } catch {} finally { setLoadingPerms(false) }
+    } catch {}
+    try {
+      const panelRes = await fetch(`/api/admin/panel-permissions?user_id=${userId}`)
+      const pd       = await panelRes.json()
+      setUserPanelPerms(pd.permissions || [])
+    } catch {}
+    setLoadingPerms(false)
   }
 
   function selectUserForPerms(user) {
@@ -408,15 +486,30 @@ export default function AdminPage() {
     if (!selectedUser) return
     setSavingPerms(true); setPermResult(null)
     try {
-      const res = await fetch('/api/admin/permissions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: selectedUser.id, permissions }),
-      })
+      const [res] = await Promise.all([
+        fetch('/api/admin/permissions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: selectedUser.id, permissions }),
+        }),
+        fetch('/api/admin/panel-permissions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: selectedUser.id, permissions: userPanelPerms }),
+        }),
+      ])
       const d = await res.json()
       setPermResult(d)
     } catch { setPermResult({ error: 'Save failed' }) }
     finally { setSavingPerms(false) }
+  }
+
+  function togglePanelPerm(tabKey, value) {
+    setUserPanelPerms(prev => {
+      const exists = prev.find(p => p.tab_key === tabKey)
+      if (exists) return prev.map(p => p.tab_key === tabKey ? { ...p, can_access: value ? 1 : 0 } : p)
+      return [...prev, { tab_key: tabKey, can_access: value ? 1 : 0 }]
+    })
   }
 
   async function handleAddUser(e) {
@@ -517,32 +610,44 @@ export default function AdminPage() {
 
         {/* Tabs */}
         <div className="tab-bar" style={{ marginBottom: '20px' }}>
-          <button className={`tab-btn ${tab === 'users' ? 'active' : ''}`} onClick={() => setTab('users')}>
-            <i className="fas fa-users" style={{ marginRight: '6px' }} />Users ({users.length})
-          </button>
-          <button className={`tab-btn ${tab === 'pending' ? 'active' : ''}`} onClick={() => setTab('pending')} style={{ position: 'relative' }}>
-            <i className="fas fa-hourglass-half" style={{ marginRight: '6px' }} />Pending Approvals
-            {pendingUsers.length > 0 && (
-              <span style={{ marginLeft: '6px', background: '#ef4444', color: '#fff', borderRadius: '10px', padding: '1px 7px', fontSize: '11px', fontWeight: '700' }}>{pendingUsers.length}</span>
-            )}
-          </button>
+          {(!panelPerms || panelPerms.includes('users')) && (
+            <button className={`tab-btn ${tab === 'users' ? 'active' : ''}`} onClick={() => setTab('users')}>
+              <i className="fas fa-users" style={{ marginRight: '6px' }} />Users ({users.length})
+            </button>
+          )}
+          {(!panelPerms || panelPerms.includes('pending')) && (
+            <button className={`tab-btn ${tab === 'pending' ? 'active' : ''}`} onClick={() => setTab('pending')} style={{ position: 'relative' }}>
+              <i className="fas fa-hourglass-half" style={{ marginRight: '6px' }} />Pending Approvals
+              {pendingUsers.length > 0 && (
+                <span style={{ marginLeft: '6px', background: '#ef4444', color: '#fff', borderRadius: '10px', padding: '1px 7px', fontSize: '11px', fontWeight: '700' }}>{pendingUsers.length}</span>
+              )}
+            </button>
+          )}
           {selectedUser && (
             <button className={`tab-btn ${tab === 'permissions' ? 'active' : ''}`} onClick={() => setTab('permissions')}>
               <i className="fas fa-key" style={{ marginRight: '6px' }} />Permissions — {selectedUser.first_name}
             </button>
           )}
-          <button className={`tab-btn ${tab === 'email' ? 'active' : ''}`} onClick={() => setTab('email')}>
-            <i className="fas fa-envelope-open-text" style={{ marginRight: '6px' }} />Email Config
-          </button>
-          <button className={`tab-btn ${tab === 'api' ? 'active' : ''}`} onClick={() => setTab('api')}>
-            <i className="fas fa-terminal" style={{ marginRight: '6px' }} />API Playground
-          </button>
-          <button className={`tab-btn ${tab === 'db' ? 'active' : ''}`} onClick={() => setTab('db')}>
-            <i className="fas fa-database" style={{ marginRight: '6px' }} />DB Optimize
-          </button>
-          <button className={`tab-btn ${tab === 'templates' ? 'active' : ''}`} onClick={() => setTab('templates')}>
-            <i className="fas fa-table-columns" style={{ marginRight: '6px' }} />Template Columns
-          </button>
+          {(!panelPerms || panelPerms.includes('email')) && (
+            <button className={`tab-btn ${tab === 'email' ? 'active' : ''}`} onClick={() => setTab('email')}>
+              <i className="fas fa-envelope-open-text" style={{ marginRight: '6px' }} />Email Config
+            </button>
+          )}
+          {(!panelPerms || panelPerms.includes('api')) && (
+            <button className={`tab-btn ${tab === 'api' ? 'active' : ''}`} onClick={() => setTab('api')}>
+              <i className="fas fa-terminal" style={{ marginRight: '6px' }} />API Playground
+            </button>
+          )}
+          {(!panelPerms || panelPerms.includes('db')) && (
+            <button className={`tab-btn ${tab === 'db' ? 'active' : ''}`} onClick={() => setTab('db')}>
+              <i className="fas fa-database" style={{ marginRight: '6px' }} />DB Optimize
+            </button>
+          )}
+          {(!panelPerms || panelPerms.includes('templates')) && (
+            <button className={`tab-btn ${tab === 'templates' ? 'active' : ''}`} onClick={() => setTab('templates')}>
+              <i className="fas fa-table-columns" style={{ marginRight: '6px' }} />Template Columns
+            </button>
+          )}
         </div>
 
         {/* ── Users Tab ── */}
@@ -852,9 +957,9 @@ export default function AdminPage() {
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{selectedUser.email} · <span style={{ color: roleColor[selectedUser.role] }}>{selectedUser.role}</span></div>
                 </div>
                 <div style={{ marginLeft: 'auto', fontSize: '12px', color: 'var(--text-muted)' }}>
-                  {selectedUser.role === 'superadmin' || selectedUser.role === 'admin'
-                    ? <span style={{ color: 'var(--green)' }}><i className="fas fa-check-circle" style={{ marginRight: '4px' }} />Full access (admin role)</span>
-                    : 'Set per-module permissions below'}
+                  {selectedUser.role === 'superadmin'
+                    ? <span style={{ color: 'var(--green)' }}><i className="fas fa-check-circle" style={{ marginRight: '4px' }} />Full access (superadmin)</span>
+                    : 'Set per-module and panel permissions below'}
                 </div>
               </div>
             </div>
@@ -872,56 +977,95 @@ export default function AdminPage() {
             {loadingPerms ? (
               <div style={{ padding: '60px', textAlign: 'center' }}><IpHouseLoader show={loadingPerms} size="sm" text="Loading permissions…" /></div>
             ) : (
-              <div className="table-wrapper">
-                <div className="table-scroll">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Module</th>
-                        {PERM_FIELDS.map(f => (
-                          <th key={f.key} style={{ textAlign: 'center', minWidth: '80px' }}>
-                            <div><i className={`fas ${f.icon}`} style={{ marginRight: '4px' }} />{f.label}</div>
-                            <div style={{ display: 'flex', justifyContent: 'center', gap: '4px', marginTop: '6px' }}>
-                              <button onClick={() => setAllForPerm(f.key, true)} style={{ fontSize: '10px', background: 'rgba(34,197,94,.15)', border: '1px solid rgba(34,197,94,.3)', color: '#22c55e', borderRadius: '4px', padding: '1px 5px', cursor: 'pointer' }}>All</button>
-                              <button onClick={() => setAllForPerm(f.key, false)} style={{ fontSize: '10px', background: 'rgba(239,68,68,.15)', border: '1px solid rgba(239,68,68,.3)', color: '#ef4444', borderRadius: '4px', padding: '1px 5px', cursor: 'pointer' }}>None</button>
-                            </div>
-                          </th>
-                        ))}
-                        <th style={{ textAlign: 'center', minWidth: '100px' }}>All / None</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {permissions.map(p => (
-                        <tr key={p.module_id}>
-                          <td>
-                            <div style={{ fontWeight: '600', fontSize: '13px' }}>{p.module_label}</div>
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{p.module_name}</div>
-                          </td>
+              <>
+                <div className="table-wrapper">
+                  <div className="table-scroll">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Module</th>
                           {PERM_FIELDS.map(f => (
-                            <td key={f.key} style={{ textAlign: 'center' }}>
-                              <Toggle checked={!!p[f.key]} onChange={v => togglePerm(p.module_id, f.key)} />
-                            </td>
+                            <th key={f.key} style={{ textAlign: 'center', minWidth: '80px' }}>
+                              <div><i className={`fas ${f.icon}`} style={{ marginRight: '4px' }} />{f.label}</div>
+                              <div style={{ display: 'flex', justifyContent: 'center', gap: '4px', marginTop: '6px' }}>
+                                <button onClick={() => setAllForPerm(f.key, true)} style={{ fontSize: '10px', background: 'rgba(34,197,94,.15)', border: '1px solid rgba(34,197,94,.3)', color: '#22c55e', borderRadius: '4px', padding: '1px 5px', cursor: 'pointer' }}>All</button>
+                                <button onClick={() => setAllForPerm(f.key, false)} style={{ fontSize: '10px', background: 'rgba(239,68,68,.15)', border: '1px solid rgba(239,68,68,.3)', color: '#ef4444', borderRadius: '4px', padding: '1px 5px', cursor: 'pointer' }}>None</button>
+                              </div>
+                            </th>
                           ))}
-                          <td style={{ textAlign: 'center' }}>
-                            <div style={{ display: 'flex', justifyContent: 'center', gap: '4px' }}>
-                              <button onClick={() => setAllForModule(p.module_id, 1)} style={{ fontSize: '10px', background: 'rgba(34,197,94,.15)', border: '1px solid rgba(34,197,94,.3)', color: '#22c55e', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer' }}>All</button>
-                              <button onClick={() => setAllForModule(p.module_id, 0)} style={{ fontSize: '10px', background: 'rgba(239,68,68,.15)', border: '1px solid rgba(239,68,68,.3)', color: '#ef4444', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer' }}>None</button>
-                            </div>
-                          </td>
+                          <th style={{ textAlign: 'center', minWidth: '100px' }}>All / None</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {permissions.map(p => (
+                          <tr key={p.module_id}>
+                            <td>
+                              <div style={{ fontWeight: '600', fontSize: '13px' }}>{p.module_label}</div>
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{p.module_name}</div>
+                            </td>
+                            {PERM_FIELDS.map(f => (
+                              <td key={f.key} style={{ textAlign: 'center' }}>
+                                <Toggle checked={!!p[f.key]} onChange={v => togglePerm(p.module_id, f.key)} />
+                              </td>
+                            ))}
+                            <td style={{ textAlign: 'center' }}>
+                              <div style={{ display: 'flex', justifyContent: 'center', gap: '4px' }}>
+                                <button onClick={() => setAllForModule(p.module_id, 1)} style={{ fontSize: '10px', background: 'rgba(34,197,94,.15)', border: '1px solid rgba(34,197,94,.3)', color: '#22c55e', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer' }}>All</button>
+                                <button onClick={() => setAllForModule(p.module_id, 0)} style={{ fontSize: '10px', background: 'rgba(239,68,68,.15)', border: '1px solid rgba(239,68,68,.3)', color: '#ef4444', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer' }}>None</button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
+
+                {/* Admin Panel Tab Access */}
+                <div className="card" style={{ marginTop: '16px', padding: '18px 20px' }}>
+                  <div style={{ fontWeight: '700', fontSize: '14px', marginBottom: '4px' }}>
+                    <i className="fas fa-shield-halved" style={{ color: 'var(--accent)', marginRight: '8px' }} />Admin Panel Tab Access
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                    Grant access to specific admin panel tabs. Users with panel access (non-admin role) can only generate API tokens using their own credentials.
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    {ADMIN_TABS.map(t => {
+                      const perm = userPanelPerms.find(p => p.tab_key === t.key)
+                      return (
+                        <div key={t.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '8px', background: 'var(--bg-secondary)', border: `1px solid ${perm?.can_access ? 'var(--accent)' : 'var(--border)'}` }}>
+                          <Toggle checked={!!perm?.can_access} onChange={v => togglePanelPerm(t.key, v)} />
+                          <span style={{ fontSize: '13px', fontWeight: '600' }}>{t.label}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </>
             )}
           </div>
         )}
 
         {/* ── API Playground Tab ── */}
-        {tab === 'api' && (
+        {tab === 'api' && (() => {
+          const schemaEntry    = Object.values(SHEET_CONFIG).find(c => c.table === playTable)
+          const templateCols   = schemaEntry ? schemaEntry.columns.filter(c => c.key !== 'id') : []
+          const schemaLabel    = schemaEntry ? schemaEntry.label : playTable
+          const templateLabels = Object.fromEntries([
+            ['id', 'ID'],
+            ...templateCols.map(c => [c.key, c.excel || c.label]),
+          ])
+          // After a successful call: use actual response keys; before: use template cols
+          const liveKeys    = playResp && Array.isArray(playResp.data) && playResp.data.length > 0
+            ? Object.keys(playResp.data[0])
+            : null
+          const schemaCols  = liveKeys
+            ? liveKeys.map(k => ({ key: k, label: templateLabels[k] || k }))
+            : [{ key: 'id', label: 'ID' }, ...templateCols.map(c => ({ key: c.key, label: c.excel || c.label }))]
+          const colLabelMap = Object.fromEntries(schemaCols.map(c => [c.key, c.label]))
+          return (
           <div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '16px' }}>
 
               {/* Step 1 — Authentication */}
               <div className="card">
@@ -929,7 +1073,19 @@ export default function AdminPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div>
                     <label className="form-label">Username</label>
-                    <input className="form-input" value={playUser} onChange={e => setPlayUser(e.target.value)} placeholder="your username" />
+                    <input
+                      className="form-input"
+                      value={playUser}
+                      onChange={e => !panelPerms && setPlayUser(e.target.value)}
+                      placeholder="your username"
+                      readOnly={!!panelPerms}
+                      style={panelPerms ? { opacity: 0.7, cursor: 'not-allowed', background: 'var(--bg-secondary)' } : {}}
+                    />
+                    {panelPerms && (
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                        <i className="fas fa-lock" style={{ marginRight: '4px' }} />You can only generate tokens for your own account
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="form-label">Password</label>
@@ -972,8 +1128,8 @@ export default function AdminPage() {
                 <div className="card-title"><i className="fas fa-sliders" />Step 2 — Build Request</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div>
-                    <label className="form-label">Table / Endpoint</label>
-                    <select className="form-input" value={playTable} onChange={e => setPlayTable(e.target.value)}>
+                    <label className="form-label">Table / Module</label>
+                    <select className="form-input" value={playTable} onChange={e => { setPlayTable(e.target.value); setPlayResp(null) }}>
                       {[
                         ['unauthorized_search_result',    'Unauthorized Search Result'],
                         ['ads_tutorials_social_media',    'Ads Tutorials — Social Media'],
@@ -998,7 +1154,7 @@ export default function AdminPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="form-label">Title / Keyword Filter (optional)</label>
+                    <label className="form-label">Title / Keyword Filter</label>
                     <input className="form-input" value={playTitle} onChange={e => setPlayTitle(e.target.value)} placeholder="Search in title, name, brand…" />
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
@@ -1025,22 +1181,114 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Response Panel */}
+            {/* ── Field Schema Panel ── */}
+            <div className="card" style={{ marginBottom: '16px' }}>
+              <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <i className="fas fa-table-columns" />
+                Field Reference
+                <span style={{ fontWeight: '400', color: 'var(--accent)', fontSize: '13px' }}>— {schemaLabel}</span>
+                {liveKeys
+                  ? <span style={{ fontSize: '10px', background: 'rgba(34,197,94,.1)', color: 'var(--green)', border: '1px solid rgba(34,197,94,.3)', borderRadius: '4px', padding: '1px 6px' }}>Live · {schemaCols.length} fields</span>
+                  : <span style={{ fontSize: '10px', background: 'var(--bg-secondary)', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: '4px', padding: '1px 6px' }}>Template preview · {schemaCols.length} fields</span>
+                }
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {schemaCols.map(col => (
+                  <div key={col.key} style={{
+                    padding: '5px 10px',
+                    background: col.key === 'id' ? 'rgba(139,92,246,.08)' : 'var(--bg-secondary)',
+                    border: `1px solid ${col.key === 'id' ? 'rgba(139,92,246,.25)' : 'var(--border)'}`,
+                    borderRadius: '6px',
+                  }}>
+                    <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: col.key === 'id' ? '#8b5cf6' : 'var(--accent)', fontWeight: '700' }}>{col.key}</div>
+                    {col.label && col.label !== col.key && (
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '1px', maxWidth: '160px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{col.label}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {!liveKeys && <div style={{ marginTop: '10px', fontSize: '11px', color: 'var(--text-muted)' }}><i className="fas fa-circle-info" style={{ marginRight: '4px' }} />Execute a request to see the full live field list for this module.</div>}
+            </div>
+
+            {/* ── Response Panel ── */}
             {playResp && (
               <div className="card" style={{ marginBottom: '20px' }}>
-                <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                   <span><i className="fas fa-code" />Response</span>
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' }}>
-                    <span className={`badge ${playResp.status < 300 ? 'badge-green' : 'badge-red'}`} style={{ marginRight: '8px' }}>{playResp.status || (playResp.error ? '500' : '200')}</span>
-                    {playRespTime !== null && <span style={{ color: 'var(--text-muted)' }}>{playRespTime} ms</span>}
-                    {playResp.total !== undefined && <span style={{ color: 'var(--text-secondary)', marginLeft: '12px' }}>{playResp.total} total records · {(playResp.data || []).length} returned</span>}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <span className={`badge ${playResp.success ? 'badge-green' : 'badge-red'}`}>{playResp.status}</span>
+                    {playRespTime !== null && (
+                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: 'var(--text-muted)' }}>{playRespTime} ms</span>
+                    )}
+                    {playResp.total !== undefined && (
+                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                        {Number(playResp.total).toLocaleString()} total · page {playResp.page}/{playResp.pages} · {(playResp.data || []).length} rows
+                      </span>
+                    )}
+                    {Array.isArray(playResp.data) && (
+                      <div style={{ display: 'flex', background: 'var(--bg-secondary)', borderRadius: '6px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                        {[['table', 'fa-table', 'Table'], ['raw', 'fa-code', 'JSON']].map(([v, icon, lbl]) => (
+                          <button key={v} onClick={() => setPlayView(v)} style={{
+                            padding: '4px 12px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: '600',
+                            background: playView === v ? 'var(--accent)' : 'transparent',
+                            color: playView === v ? '#fff' : 'var(--text-muted)',
+                          }}>
+                            <i className={`fas ${icon}`} style={{ marginRight: '4px' }} />{lbl}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '14px', maxHeight: '400px', overflowY: 'auto' }}>
-                  <pre style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>
-                    {JSON.stringify(playResp, null, 2)}
-                  </pre>
-                </div>
+
+                {/* Table View */}
+                {playView === 'table' && Array.isArray(playResp.data) && playResp.data.length > 0 && (() => {
+                  const keys = Object.keys(playResp.data[0])
+                  return (
+                    <div className="table-scroll">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            {keys.map(k => (
+                              <th key={k} style={{ whiteSpace: 'nowrap', fontSize: '11px', minWidth: '90px' }}>
+                                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', color: 'var(--accent)', fontWeight: '700' }}>{k}</div>
+                                {colLabelMap[k] && colLabelMap[k] !== k && (
+                                  <div style={{ fontSize: '10px', fontWeight: '400', color: 'var(--text-muted)', marginTop: '1px' }}>{colLabelMap[k]}</div>
+                                )}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {playResp.data.map((row, i) => (
+                            <tr key={i}>
+                              {keys.map(k => (
+                                <td key={k} style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>
+                                  {row[k] == null
+                                    ? <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '10px' }}>—</span>
+                                    : (() => { const s = String(row[k]); return s.length > 45 ? s.slice(0, 45) + '…' : s })()}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                })()}
+
+                {playView === 'table' && Array.isArray(playResp.data) && playResp.data.length === 0 && (
+                  <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>No records returned for this query</div>
+                )}
+
+                {/* Raw JSON View */}
+                {(playView === 'raw' || !Array.isArray(playResp.data)) && (
+                  <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '14px', maxHeight: '420px', overflowY: 'auto' }}>
+                    <pre style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>
+                      {JSON.stringify(playResp, null, 2)}
+                    </pre>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1127,7 +1375,8 @@ export default function AdminPage() {
               )}
             </div>
           </div>
-        )}
+          )
+        })()}
 
         {/* ── DB Optimize Tab ── */}
         {tab === 'db' && (
@@ -1384,6 +1633,95 @@ export default function AdminPage() {
 
                   <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--text-muted)' }}>
                     {tplCols.filter(c => c.included).length} of {tplCols.length} columns included in template
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Add Custom Column */}
+            <div className="card" style={{ marginTop: '16px', padding: '20px 24px' }}>
+              <div style={{ fontWeight: '700', fontSize: '14px', marginBottom: '4px' }}>
+                <i className="fas fa-plus-circle" style={{ color: 'var(--accent)', marginRight: '8px' }} />Add Custom Column
+              </div>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                Add a new column to the selected module's database table. The column will be created in the DB if it doesn't already exist, then appear in the template column list above.
+              </p>
+              <form onSubmit={addCustomColumn} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <div>
+                  <label className="form-label">Column Key (snake_case)</label>
+                  <input
+                    className="form-input"
+                    value={newColForm.key}
+                    onChange={e => setNewColForm(f => ({ ...f, key: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') }))}
+                    placeholder="my_custom_column"
+                    required
+                    style={{ minWidth: '180px' }}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Display Label</label>
+                  <input
+                    className="form-input"
+                    value={newColForm.label}
+                    onChange={e => setNewColForm(f => ({ ...f, label: e.target.value }))}
+                    placeholder="My Custom Column"
+                    required
+                    style={{ minWidth: '160px' }}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Column Type</label>
+                  <select className="form-input" value={newColForm.type} onChange={e => setNewColForm(f => ({ ...f, type: e.target.value }))}>
+                    <option value="VARCHAR(512)">Text (VARCHAR 512)</option>
+                    <option value="TEXT">Long Text</option>
+                    <option value="INT">Integer</option>
+                    <option value="BIGINT">Big Integer</option>
+                    <option value="DECIMAL(12,2)">Decimal</option>
+                    <option value="DATE">Date</option>
+                    <option value="DATETIME">Date &amp; Time</option>
+                  </select>
+                </div>
+                <button type="submit" className="btn btn-primary" disabled={addingCol}>
+                  {addingCol
+                    ? <><div className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px', marginRight: '6px' }} />Adding…</>
+                    : <><i className="fas fa-plus" />Add Column</>}
+                </button>
+              </form>
+
+              {addColResult && (
+                <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '6px', fontSize: '13px',
+                  background: addColResult.error ? 'rgba(239,68,68,.1)' : 'rgba(34,197,94,.1)',
+                  border: `1px solid ${addColResult.error ? 'rgba(239,68,68,.3)' : 'rgba(34,197,94,.3)'}`,
+                  color: addColResult.error ? 'var(--red)' : 'var(--green)' }}>
+                  <i className={`fas ${addColResult.error ? 'fa-exclamation-circle' : 'fa-check-circle'}`} style={{ marginRight: '6px' }} />
+                  {addColResult.error || addColResult.success}
+                </div>
+              )}
+
+              {customCols.length > 0 && (
+                <div style={{ marginTop: '16px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase' }}>
+                    Custom Columns ({customCols.length})
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {customCols.map(c => (
+                      <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 12px', background: 'var(--bg-secondary)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                        <i className="fas fa-star" style={{ color: 'var(--accent)', fontSize: '10px', flexShrink: 0 }} />
+                        <span style={{ fontWeight: '600', fontSize: '13px' }}>{c.column_label}</span>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{c.column_key}</span>
+                        <span style={{ fontSize: '10px', color: 'var(--text-muted)', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '3px', padding: '1px 5px' }}>{c.column_type}</span>
+                        <button
+                          onClick={async () => {
+                            await fetch(`/api/admin/custom-columns?id=${c.id}`, { method: 'DELETE' })
+                            fetchTemplateConfig(tplSheet, tplType)
+                          }}
+                          title="Remove custom column"
+                          style={{ marginLeft: 'auto', background: 'rgba(239,68,68,.15)', border: '1px solid rgba(239,68,68,.3)', color: '#ef4444', borderRadius: '5px', cursor: 'pointer', padding: '2px 8px', fontSize: '11px' }}
+                        >
+                          <i className="fas fa-trash" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
