@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import flatpickr from 'flatpickr'
+import 'flatpickr/dist/themes/dark.css'
 
 // ── Date Range Picker ──────────────────────────────────────────────────────
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -400,6 +402,62 @@ function StatusBadge({ status }) {
   return <span className={`badge ${getStatusBadgeClass(status)}`}>{status}</span>
 }
 
+// ── Date / DateTime Picker (flatpickr) ──────────────────────────────────────
+function DateTimeInput({ type, value, onChange, hasError }) {
+  const inputRef = useRef(null)
+  const fpRef    = useRef(null)
+
+  useEffect(() => {
+    if (!inputRef.current) return
+    const fp = flatpickr(inputRef.current, {
+      enableTime: type === 'datetime',
+      dateFormat: type === 'datetime' ? 'Y-m-d H:i' : 'Y-m-d',
+      time_24hr:  true,
+      defaultDate: value || null,
+      allowInput:  true,
+      disableMobile: true,
+      onChange: ([date]) => {
+        if (!date) { onChange(''); return }
+        const y  = date.getFullYear()
+        const mo = String(date.getMonth() + 1).padStart(2, '0')
+        const d  = String(date.getDate()).padStart(2, '0')
+        if (type === 'datetime') {
+          const h  = String(date.getHours()).padStart(2, '0')
+          const mi = String(date.getMinutes()).padStart(2, '0')
+          onChange(`${y}-${mo}-${d} ${h}:${mi}`)
+        } else {
+          onChange(`${y}-${mo}-${d}`)
+        }
+      },
+    })
+    fpRef.current = fp
+    return () => { fp.destroy(); fpRef.current = null }
+  }, [type]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync external value changes into flatpickr (e.g. on initial load)
+  useEffect(() => {
+    if (fpRef.current) fpRef.current.setDate(value || null, false)
+  }, [value])
+
+  return (
+    <>
+      <div style={{ position: 'relative' }}>
+        <input
+          ref={inputRef}
+          className="form-input"
+          placeholder={type === 'datetime' ? 'YYYY-MM-DD HH:MM' : 'YYYY-MM-DD'}
+          style={{ borderColor: hasError ? 'var(--red)' : undefined, paddingRight: '36px', cursor: 'pointer' }}
+        />
+        <i className={`fas ${type === 'datetime' ? 'fa-calendar-days' : 'fa-calendar'}`}
+          style={{ position:'absolute', right:'12px', top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)', fontSize:'13px', pointerEvents:'none' }} />
+      </div>
+      {type === 'datetime' && (
+        <div style={{ fontSize:'10px', color:'var(--text-muted)', marginTop:'3px' }}>IST (UTC+5:30) — auto-converted to UTC for storage</div>
+      )}
+    </>
+  )
+}
+
 // ── Edit Row Modal ──────────────────────────────────────────────────────────
 function EditModal({ sheetName, rowId, onClose, onSaved }) {
   const [row, setRow]           = useState(null)
@@ -471,23 +529,13 @@ function EditModal({ sheetName, rowId, onClose, onSaved }) {
                       <option value="">—</option>
                       {REMOVAL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
-                  ) : col.type === 'datetime' ? (
-                    <>
-                      <input type="datetime-local" className="form-input"
-                        value={formData[col.key] ? String(formData[col.key]).slice(0, 16).replace(' ', 'T') : ''}
-                        onChange={e => { setFormData(p => ({ ...p, [col.key]: e.target.value.replace('T', ' ') })); setFieldErrors(p => ({ ...p, [col.key]: undefined })) }}
-                        style={{ borderColor: fieldErrors[col.key] ? 'var(--red)' : undefined }} />
-                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>IST (UTC+5:30) — auto-converted to UTC for storage</div>
-                    </>
-                  ) : col.type === 'date' ? (
-                    <>
-                      <input type="date" className="form-input"
-                        value={formData[col.key] ? String(formData[col.key]).slice(0, 10) : ''}
-                        onChange={e => { setFormData(p => ({ ...p, [col.key]: e.target.value })); setFieldErrors(p => ({ ...p, [col.key]: undefined })) }}
-                        style={{ borderColor: fieldErrors[col.key] ? 'var(--red)' : undefined }} />
-                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>Date (IST)</div>
-                    </>
-
+                  ) : col.type === 'datetime' || col.type === 'date' ? (
+                    <DateTimeInput
+                      type={col.type}
+                      value={formData[col.key] || ''}
+                      onChange={v => { setFormData(p => ({ ...p, [col.key]: v })); setFieldErrors(p => ({ ...p, [col.key]: undefined })) }}
+                      hasError={!!fieldErrors[col.key]}
+                    />
                   ) : col.type === 'number' ? (
                     <input type="number" className="form-input"
                       value={formData[col.key] || ''}

@@ -1,6 +1,19 @@
 import { NextResponse } from 'next/server'
 import { query } from '@/lib/db'
 
+// Maps DB module display names → URL table slugs used in /api/v1/[table]
+const MODULE_TABLE_MAP = {
+  'Unauthorized Search Result':  'unauthorized_search_result',
+  'Ads Tutorials- Social Media': 'ads_tutorials_social_media',
+  'Password Sharing-Social Med.':'password_sharing_social_media',
+  'Password Sharing-Marketplace':'password_sharing_marketplace',
+  'IPTV & Apps - Internet':      'iptv_apps_internet',
+  'IPTV & Apps - Apps':          'iptv_apps_apps',
+  'IPTV & Apps - Social Media':  'iptv_apps_social_media',
+  'IPTV & Apps - Marketplace':   'iptv_apps_marketplace',
+  'IPTV & Apps - Meta Ads':      'iptv_apps_meta_ads',
+}
+
 async function validateToken(req) {
   const auth  = req.headers.get('authorization') || ''
   const token = auth.replace(/^bearer\s+/i, '').trim()
@@ -63,10 +76,15 @@ export async function GET(req) {
       )
     }
 
-    return NextResponse.json({
-      success: true,
-      modules: rows.map(r => r.name),
-    })
+    const modules = rows
+      .filter(r => MODULE_TABLE_MAP[r.name])
+      .map(r => ({
+        name:     r.name,
+        table:    MODULE_TABLE_MAP[r.name],
+        endpoint: `/api/v1/${MODULE_TABLE_MAP[r.name]}`,
+      }))
+
+    return NextResponse.json({ success: true, modules })
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
