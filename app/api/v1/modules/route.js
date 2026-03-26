@@ -57,8 +57,6 @@ export async function GET(req) {
     }
     const role = userRows[0].role
 
-    let modules
-
     let rows
 
     if (role === 'admin' || role === 'superadmin') {
