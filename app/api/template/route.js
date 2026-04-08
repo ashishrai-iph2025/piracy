@@ -165,7 +165,7 @@ export async function GET(req) {
     ['', ''],
     ['Purpose', 'Upload new records into the system via Excel file.'],
     ['', ''],
-    ['STEP 1', 'Fill data in the first sheet starting from row 3 (row 1 = headers, row 2 = format hints).'],
+    ['STEP 1', 'Fill data in the first sheet starting from row 2 (row 1 = headers, row 2 = format hints(Delete it)).'],
     ['STEP 2', 'Do NOT modify the header row (row 1).'],
     ['STEP 3', `The "${cfg.uniqueUrlCol ? toHeader(cfg.uniqueUrlCol) : 'URL'}" column is required — rows without it will be skipped.`],
     ['STEP 4', 'If a URL already exists in the database, the row will be updated (not duplicated).'],
@@ -175,12 +175,6 @@ export async function GET(req) {
     ['IMPORTANT', 'Future dates are not allowed for identification/enforcement date columns.'],
     ['', ''],
     ['Date Format', 'YYYY-MM-DD HH:MM:SS  e.g. 2024-03-15 14:30:00 (IST)'],
-    ['Status Values', 'Pending, Removed, Enforced, Not Removed, Under Review, Down, Suspended, Approved'],
-    ['URL Format', 'Must start with http:// or https://'],
-    ['', ''],
-    ['Module', sheetName],
-    ['Table', cfg.table],
-    ['Unique Key Column', cfg.uniqueUrlCol || '—'],
   ]
 
   const wsInstr = XLSX.utils.aoa_to_sheet(instructions)
