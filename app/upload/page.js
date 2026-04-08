@@ -14,7 +14,7 @@ function DateRangePicker({ dateFrom, dateTo, onFromChange, onToChange }) {
   const [viewMonth, setViewMonth] = useState(new Date().getMonth())
   const [selecting, setSelecting] = useState('from')
   const [hover, setHover]       = useState(null)
-  const [dropPos, setDropPos]   = useState({ top: 0, left: 0 })
+  const [dropPos, setDropPos]   = useState({ top: 0, left: 0, width: 308 })
   const triggerRef = useRef(null)
   const dropRef    = useRef(null)
 
@@ -31,13 +31,14 @@ function DateRangePicker({ dateFrom, dateTo, onFromChange, onToChange }) {
 
   function openPicker() {
     const rect = triggerRef.current.getBoundingClientRect()
-    const dropW = 308
-    let left = rect.left + rect.width / 2 - dropW / 2
-    // clamp to viewport
-    left = Math.max(8, Math.min(left, window.innerWidth - dropW - 8))
+    const isMobile = window.innerWidth <= 480
+    const dropW = isMobile ? Math.min(308, window.innerWidth - 16) : 308
+    let left = isMobile ? Math.max(8, (window.innerWidth - dropW) / 2) : rect.left + rect.width / 2 - dropW / 2
+    if (!isMobile) left = Math.max(8, Math.min(left, window.innerWidth - dropW - 8))
     let top = rect.bottom + 8
-    if (top + 420 > window.innerHeight) top = rect.top - 420 - 8
-    setDropPos({ top, left })
+    const calH = isMobile ? 380 : 420
+    if (top + calH > window.innerHeight) top = Math.max(8, rect.top - calH - 8)
+    setDropPos({ top, left, width: dropW })
     const base = dateFrom ? new Date(dateFrom) : new Date()
     setViewYear(base.getFullYear()); setViewMonth(base.getMonth())
     setSelecting(dateFrom && !dateTo ? 'to' : 'from')
@@ -94,7 +95,7 @@ function DateRangePicker({ dateFrom, dateTo, onFromChange, onToChange }) {
     return {
       position: 'relative',
       textAlign: 'center',
-      padding: '7px 0',
+      padding: dropPos && dropPos.width < 280 ? '5px 0' : '7px 0',
       borderRadius: (isFrom || isTo) ? '50%' : inRange ? '0' : '50%',
       background: (isFrom || isTo)
         ? 'linear-gradient(135deg, var(--accent), var(--accent-dark))'
@@ -150,12 +151,12 @@ function DateRangePicker({ dateFrom, dateTo, onFromChange, onToChange }) {
           ref={dropRef}
           style={{
             position: 'fixed', top: dropPos.top, left: dropPos.left,
-            zIndex: 9999, width: '308px',
+            zIndex: 9999, width: dropPos.width + 'px',
             background: 'var(--bg-card)',
             border: '1px solid var(--border)',
             borderRadius: '18px',
             boxShadow: '0 24px 72px rgba(0,0,0,0.5)',
-            padding: '18px',
+            padding: dropPos.width < 280 ? '12px' : '18px',
             animation: 'fadeIn 0.15s ease',
           }}
         >
@@ -903,21 +904,46 @@ function UploadPageInner() {
     else alert(d.error || 'Delete failed')
   }
 
+  const UPLOAD_MAX_MB = 50
+
+  function validateUploadFile(file) {
+    if (!file) return null
+    if (file.size > UPLOAD_MAX_MB * 1024 * 1024) {
+      return `File too large: ${(file.size / 1024 / 1024).toFixed(1)} MB. Maximum allowed size is ${UPLOAD_MAX_MB} MB.`
+    }
+    return null
+  }
+
   async function doUpload() {
     if (!uploadFile) return
+    const sizeErr = validateUploadFile(uploadFile)
+    if (sizeErr) { setUploadResult({ error: sizeErr }); return }
+
     setUploadLoading(true); setUploadResult(null)
     const fd = new FormData()
     fd.append('file', uploadFile)
     fd.append('sheet', activeSheet)
     try {
       const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      const d = await res.json()
+      let d
+      try {
+        d = await res.json()
+      } catch {
+        if (res.status === 413) {
+          d = { error: `File is too large for the server to accept. Try splitting the file into smaller parts (under ${UPLOAD_MAX_MB} MB).` }
+        } else {
+          d = { error: `Upload failed — server returned HTTP ${res.status}. Please try again.` }
+        }
+      }
+      if (!d.success && !d.error) d.error = `Upload failed (HTTP ${res.status}).`
       setUploadResult(d)
       if (d.success) setTimeout(() => {
         setUploadOpen(false); setUploadFile(null); setUploadResult(null)
         fetchData(1, limit, search, activeSheet, sortCol, sortDir, colFilters)
       }, 1800)
-    } catch { setUploadResult({ error: 'Upload failed' }) }
+    } catch (err) {
+      setUploadResult({ error: `Upload failed: ${err.message || 'Network error — check your connection and try again.'}` })
+    }
     finally { setUploadLoading(false) }
   }
 
@@ -1268,19 +1294,31 @@ function UploadPageInner() {
                 className={`drop-zone ${dragOver ? 'dragover' : ''}`}
                 onDragOver={e => { e.preventDefault(); setDragOver(true) }}
                 onDragLeave={() => setDragOver(false)}
-                onDrop={e => { e.preventDefault(); setDragOver(false); setUploadFile(e.dataTransfer?.files[0]) }}
+                onDrop={e => {
+                  e.preventDefault(); setDragOver(false)
+                  const f = e.dataTransfer?.files[0]
+                  const err = validateUploadFile(f)
+                  if (err) { setUploadResult({ error: err }); return }
+                  setUploadFile(f); setUploadResult(null)
+                }}
                 onClick={() => document.getElementById('uploadFileInput').click()}
               >
                 <i className="fas fa-cloud-upload-alt" style={{ fontSize: '32px', marginBottom: '12px', color: dragOver ? 'var(--accent)' : 'var(--text-muted)' }} />
                 <p style={{ fontSize: '14px', marginBottom: '6px' }}>Drop your file here or <strong style={{ color: 'var(--accent-light)' }}>click to browse</strong></p>
-                <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Supports .xlsx, .xls, .csv — Max 50MB</p>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Supports .xlsx, .xls, .csv — Max {UPLOAD_MAX_MB} MB</p>
                 {uploadFile && (
                   <div style={{ marginTop: '10px', padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: '6px', fontSize: '12px', color: 'var(--accent-light)' }}>
-                    <i className="fas fa-file" style={{ marginRight: '6px' }} />{uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)
+                    <i className="fas fa-file" style={{ marginRight: '6px' }} />
+                    {uploadFile.name} ({uploadFile.size >= 1024 * 1024 ? `${(uploadFile.size / 1024 / 1024).toFixed(1)} MB` : `${(uploadFile.size / 1024).toFixed(1)} KB`})
                   </div>
                 )}
               </div>
-              <input type="file" id="uploadFileInput" accept=".csv,.xlsx,.xls" style={{ display: 'none' }} onChange={e => setUploadFile(e.target.files[0])} />
+              <input type="file" id="uploadFileInput" accept=".csv,.xlsx,.xls" style={{ display: 'none' }} onChange={e => {
+                const f = e.target.files[0]
+                const err = validateUploadFile(f)
+                if (err) { setUploadResult({ error: err }); e.target.value = ''; return }
+                setUploadFile(f); setUploadResult(null)
+              }} />
               {uploadResult && (
                 <div style={{ marginTop: '14px', padding: '14px', borderRadius: '8px', fontSize: '13px',
                   background: uploadResult.success ? 'rgba(34,197,94,.1)' : 'rgba(239,68,68,.1)',

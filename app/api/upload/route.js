@@ -60,6 +60,14 @@ export async function POST(req) {
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
+    const MAX_BYTES = 50 * 1024 * 1024 // 50 MB
+    if (buffer.length > MAX_BYTES) {
+      return NextResponse.json(
+        { error: `File too large: ${(buffer.length / 1024 / 1024).toFixed(1)} MB. Maximum allowed size is 50 MB.` },
+        { status: 413 }
+      )
+    }
+
     // Parse workbook
     const wb = XLSX.read(buffer, { type: 'buffer', cellDates: true })
 

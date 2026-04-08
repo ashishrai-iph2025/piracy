@@ -14,6 +14,8 @@ const MOD_COLOR = {
   teal:'#14b8a6', green:'#22c55e', pink:'#ec4899', yellow:'#eab308', indigo:'#6366f1',
 }
 
+const REMOVAL_MODULE_KEYS = new Set(['Social Media', 'Marketplace'])
+
 // ── Date Range Picker (same as upload page) ────────────────────────────────
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const WDAYS  = ['Su','Mo','Tu','We','Th','Fr','Sa']
@@ -415,6 +417,8 @@ export default function DashboardPage() {
     const gridColor = 'rgba(255,255,255,0.05)'
     const tickColor = '#7a92b0'
     const font = { family:'DM Sans, Inter, sans-serif', size:11 }
+    const isRemovalOnly = d.modules?.length > 0 && d.modules.every(m => REMOVAL_MODULE_KEYS.has(m.key))
+    const actionedLabel = isRemovalOnly ? 'Removed' : 'Actioned'
 
     // Module comparison chart (horizontal bar)
     if (chartRefs.current.moduleBar && d.modules?.length) {
@@ -425,8 +429,8 @@ export default function DashboardPage() {
         data: {
           labels: sorted.map(m => m.label),
           datasets: [
-            { label:'Identified', data: sorted.map(m => m.total),    backgroundColor: sorted.map(m => MOD_COLOR[m.color] || '#3b82f6'), borderRadius:4, barThickness:14 },
-            { label:'Actioned',   data: sorted.map(m => m.actioned), backgroundColor: sorted.map(m => (MOD_COLOR[m.color] || '#3b82f6') + '66'), borderRadius:4, barThickness:8 },
+            { label:'Identified',   data: sorted.map(m => m.total),    backgroundColor: sorted.map(m => MOD_COLOR[m.color] || '#3b82f6'), borderRadius:4, barThickness:14 },
+            { label:actionedLabel,  data: sorted.map(m => m.actioned), backgroundColor: sorted.map(m => (MOD_COLOR[m.color] || '#3b82f6') + '66'), borderRadius:4, barThickness:8 },
           ]
         },
         options: {
@@ -448,8 +452,8 @@ export default function DashboardPage() {
         data: {
           labels: d.countries.slice(0,12).map(c => c.country),
           datasets: [
-            { label:'Total',    data: d.countries.slice(0,12).map(c => c.total),    backgroundColor:'#3b82f6', borderRadius:4 },
-            { label:'Actioned', data: d.countries.slice(0,12).map(c => c.actioned), backgroundColor:'#22c55e', borderRadius:4 },
+            { label:'Total',        data: d.countries.slice(0,12).map(c => c.total),    backgroundColor:'#3b82f6', borderRadius:4 },
+            { label:actionedLabel,  data: d.countries.slice(0,12).map(c => c.actioned), backgroundColor:'#22c55e', borderRadius:4 },
           ]
         },
         options: {
@@ -465,6 +469,7 @@ export default function DashboardPage() {
   }
 
   const stats = data?.stats || {}
+  const onlyRemoval = data?.modules?.length > 0 && data.modules.every(m => REMOVAL_MODULE_KEYS.has(m.key))
 
   return (
     <div className="page-content">
@@ -584,8 +589,8 @@ export default function DashboardPage() {
             {/* ── Summary Stats Row ── */}
             <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'14px', marginBottom:'20px' }}>
               <StatCard label="Total Identified" value={stats.totalIdent} sub="Across selected modules" icon="eye" accent="#3b82f6" />
-              <StatCard label="Total Actioned" value={stats.totalActioned} sub={`${stats.actionRate}% action rate`} icon="circle-check" accent="#22c55e" />
-              <StatCard label="Pending / Active" value={(stats.totalIdent || 0) - (stats.totalActioned || 0)} sub="Still requiring action" icon="hourglass-half" accent="#f59e0b" />
+              <StatCard label={onlyRemoval ? 'Total Removed' : 'Total Actioned'} value={stats.totalActioned} sub={`${stats.actionRate}% ${onlyRemoval ? 'removal' : 'action'} rate`} icon="circle-check" accent="#22c55e" />
+              <StatCard label={onlyRemoval ? 'Active' : 'Pending / Active'} value={(stats.totalIdent || 0) - (stats.totalActioned || 0)} sub={onlyRemoval ? 'Still active' : 'Still requiring action'} icon="hourglass-half" accent="#f59e0b" />
               <StatCard label="Modules Active" value={stats.moduleCount} sub={`of ${accessibleModules.length} accessible`} icon="layer-group" accent="#8b5cf6" />
             </div>
 
@@ -632,7 +637,7 @@ export default function DashboardPage() {
                       <div style={{ fontSize:'18px', fontWeight:'800', color:'var(--text-primary)', lineHeight:1 }}>{Number(mod.total).toLocaleString()}</div>
                     </div>
                     <div style={{ padding:'10px 16px' }}>
-                      <div style={{ fontSize:'10px', color:'#22c55e', fontWeight:'600', marginBottom:'2px' }}>Delisting</div>
+                      <div style={{ fontSize:'10px', color:'#22c55e', fontWeight:'600', marginBottom:'2px' }}>{REMOVAL_MODULE_KEYS.has(mod.key) ? 'REMOVED' : 'Delisting'}</div>
                       <div style={{ fontSize:'18px', fontWeight:'800', color:'#22c55e', lineHeight:1 }}>{Number(mod.actioned).toLocaleString()}</div>
                     </div>
                   </div>
@@ -640,7 +645,7 @@ export default function DashboardPage() {
                   {/* Rate bar */}
                   <div style={{ padding:'10px 16px 12px' }}>
                     <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'5px' }}>
-                      <span style={{ fontSize:'10px', color:'var(--text-muted)', fontWeight:'600' }}>ACTION RATE</span>
+                      <span style={{ fontSize:'10px', color:'var(--text-muted)', fontWeight:'600' }}>{REMOVAL_MODULE_KEYS.has(mod.key) ? 'REMOVAL RATE' : 'ACTION RATE'}</span>
                     </div>
                     <RateBar rate={mod.actionRate} color={MOD_COLOR[mod.color]} />
                   </div>
@@ -751,8 +756,8 @@ export default function DashboardPage() {
                       <th>#</th>
                       <th>Country</th>
                       <th style={{ textAlign:'right' }}>Total Identified</th>
-                      <th style={{ textAlign:'right' }}>Total Actioned</th>
-                      <th style={{ minWidth:'140px' }}>Action Rate</th>
+                      <th style={{ textAlign:'right' }}>{onlyRemoval ? 'Total Removed' : 'Total Actioned'}</th>
+                      <th style={{ minWidth:'140px' }}>{onlyRemoval ? 'Removal Rate' : 'Action Rate'}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -788,9 +793,9 @@ export default function DashboardPage() {
                       <th>#</th>
                       <th>Module</th>
                       <th style={{ textAlign:'right' }}>Identified</th>
-                      <th style={{ textAlign:'right' }}>Actioned</th>
-                      <th style={{ textAlign:'right' }}>Pending</th>
-                      <th style={{ minWidth:'140px' }}>Action Rate</th>
+                      <th style={{ textAlign:'right' }}>{onlyRemoval ? 'Removed' : 'Actioned'}</th>
+                      <th style={{ textAlign:'right' }}>{onlyRemoval ? 'Active' : 'Pending'}</th>
+                      <th style={{ minWidth:'140px' }}>{onlyRemoval ? 'Removal Rate' : 'Action Rate'}</th>
                       <th></th>
                     </tr>
                   </thead>
